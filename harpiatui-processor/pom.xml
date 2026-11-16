@@ -17,21 +17,15 @@
 
     <name>HarpiaTUI Processor</name>
     <description>
-        Annotation processor do HarpiaTUI. Le @HarpiaMain/@Menu/@Submenu/@Item em tempo
-        de compilacao e gera o registro de menus, eliminando varredura de
-        classpath e reflexao em runtime.
+        Annotation processor do HarpiaTUI. Le @HarpiaMain/@Menu/@Submenu/@Item em
+        tempo de compilacao e gera o registro de menus e o main.
     </description>
 
-    <dependencies>
-        <!--
-          annotations + SPI. Precisa ser 'compile' para chegar ao processor path
-          de quem consome; o Maven nao embute dependencias no jar do processor.
-        -->
-        <dependency>
-            <groupId>com.github.rhama</groupId>
-            <artifactId>harpiatui</artifactId>
-        </dependency>
-    </dependencies>
+    <!--
+      Sem dependencias de proposito: o processor usa os nomes qualificados das
+      annotations e AnnotationMirror, nao as classes da lib. Isso evita um ciclo
+      (lib -> processor -> lib) e permite que ele seja transitivo.
+    -->
 
     <build>
         <plugins>

@@ -109,7 +109,7 @@ mvn deploy -DskipTests
 
 ## Usar em outro projeto
 
-Dependência + annotation processor:
+Basta a dependência:
 
 ```xml
 <dependencies>
@@ -119,28 +119,58 @@ Dependência + annotation processor:
         <version>1.0.0-SNAPSHOT</version>
     </dependency>
 </dependencies>
-
-<build>
-    <plugins>
-        <plugin>
-            <groupId>org.apache.maven.plugins</groupId>
-            <artifactId>maven-compiler-plugin</artifactId>
-            <version>3.13.0</version>
-            <configuration>
-                <annotationProcessorPaths>
-                    <path>
-                        <groupId>com.github.rhama</groupId>
-                        <artifactId>harpiatui-processor</artifactId>
-                        <version>1.0.0-SNAPSHOT</version>
-                    </path>
-                </annotationProcessorPaths>
-            </configuration>
-        </plugin>
-    </plugins>
-</build>
 ```
 
+O **annotation processor vem junto** (`harpiatui-processor` é dependência
+transitiva da lib) e o `javac` o descobre no classpath. Você não configura mais
+nada no `pom.xml`.
+
 E, por causa do TamboUI transitivo (só existe como snapshot):
+
+```xml
+<repositories>
+    <repository>
+        <id>ossrh-snapshots</id>
+        <url>https://central.sonatype.com/repository/maven-snapshots/</url>
+        <releases><enabled>false</enabled></releases>
+        <snapshots><enabled>true</enabled></snapshots>
+    </repository>
+</repositories>
+```
+
+Gradle:
+
+```kotlin
+dependencies {
+    implementation("com.github.rhama:harpiatui:1.0.0-SNAPSHOT")
+}
+```
+
+### Configuração explícita do processor (opcional)
+
+Em JDK 23+ o `javac` deixa de executar processors encontrados no classpath por
+padrão. Nesse caso, declare o caminho — o artifact já está disponível:
+
+```xml
+<plugin>
+    <groupId>org.apache.maven.plugins</groupId>
+    <artifactId>maven-compiler-plugin</artifactId>
+    <version>3.13.0</version>
+    <configuration>
+        <annotationProcessorPaths>
+            <path>
+                <groupId>com.github.rhama</groupId>
+                <artifactId>harpiatui-processor</artifactId>
+                <version>1.0.0-SNAPSHOT</version>
+            </path>
+        </annotationProcessorPaths>
+    </configuration>
+</plugin>
+```
+
+> Se o código gerado não aparecer (`<App>_HarpiaLauncher` em
+> `target/generated-sources`), é sinal de que o processor não rodou: use o bloco
+> acima.
 
 ```xml
 <repositories>
@@ -188,8 +218,8 @@ dependencies {
 }
 ```
 
-> **Sem o processor não funciona.** O runtime não descobre nada sozinho — se o
-> registro não existir, o start falha mostrando como configurar.
+> O classpath do projeto já traz o processor transitivamente, então o build
+> funciona sem configuração extra no JDK 21.
 
 ## Rodar
 

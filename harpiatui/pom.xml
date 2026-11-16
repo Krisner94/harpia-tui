@@ -23,6 +23,16 @@
     </description>
 
     <dependencies>
+        <!--
+          O processor vem junto de proposito (escopo compile) para que quem so
+          declare esta dependencia ja tenha a geracao de codigo funcionando:
+          o javac descobre processors no classpath.
+        -->
+        <dependency>
+            <groupId>com.github.rhama</groupId>
+            <artifactId>harpiatui-processor</artifactId>
+        </dependency>
+
         <!-- Toolkit DSL: API declarativa com componentes e foco -->
         <dependency>
             <groupId>dev.tamboui</groupId>

@@ -1,15 +1,12 @@
 package com.github.rhama.harpiatui.processor;
 
-import com.github.rhama.harpiatui.annotation.HarpiaMain;
-import com.github.rhama.harpiatui.annotation.Item;
-import com.github.rhama.harpiatui.annotation.Menu;
-import com.github.rhama.harpiatui.annotation.Submenu;
-
 import javax.annotation.processing.AbstractProcessor;
 import javax.annotation.processing.RoundEnvironment;
 import javax.annotation.processing.SupportedAnnotationTypes;
 import javax.annotation.processing.SupportedSourceVersion;
 import javax.lang.model.SourceVersion;
+import javax.lang.model.element.AnnotationMirror;
+import javax.lang.model.element.AnnotationValue;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
@@ -24,7 +21,6 @@ import java.io.Writer;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -42,6 +38,10 @@ import java.util.Set;
  *       {@code ServiceLoader} (usado por {@code HarpiaLauncher.launch(Class)}).</li>
  * </ul>
  *
+ * <p>O processor nao depende da biblioteca em tempo de compilacao: ele trabalha
+ * com os nomes qualificados das annotations e com {@link AnnotationMirror}. Isso
+ * permite que o artefato seja uma dependencia transitiva da lib, sem ciclo.
+ *
  * <p>Com isso o runtime nao varre classpath nem le annotations. Erros de
  * estrutura (id duplicado, parent inexistente, ciclo, metodo nao estatico)
  * viram erro de compilacao.
@@ -54,6 +54,12 @@ import java.util.Set;
 })
 @SupportedSourceVersion(SourceVersion.RELEASE_21)
 public class HarpiaProcessor extends AbstractProcessor {
+
+    private static final String PACOTE = "com.github.rhama.harpiatui.annotation.";
+    private static final String HARPIA_MAIN = PACOTE + "HarpiaMain";
+    private static final String MENU = PACOTE + "Menu";
+    private static final String SUBMENU = PACOTE + "Submenu";
+    private static final String ITEM = PACOTE + "Item";
 
     private static final String SPI = "com.github.rhama.harpiatui.spi.HarpiaRegistry";
     private static final String SUFIXO = "_HarpiaRegistry";
@@ -72,8 +78,13 @@ public class HarpiaProcessor extends AbstractProcessor {
             return false;
         }
 
+        TypeElement anotacaoMain = tipoDaAnotacao(HARPIA_MAIN);
+        if (anotacaoMain == null) {
+            return false;
+        }
+
         List<TypeElement> apps = new ArrayList<>();
-        for (Element elemento : round.getElementsAnnotatedWith(HarpiaMain.class)) {
+        for (Element elemento : round.getElementsAnnotatedWith(anotacaoMain)) {
             apps.add((TypeElement) elemento);
         }
         if (apps.isEmpty()) {
@@ -114,11 +125,15 @@ public class HarpiaProcessor extends AbstractProcessor {
 
     private List<ItemModel> coletarItens(RoundEnvironment round) {
         List<ItemModel> itens = new ArrayList<>();
+        TypeElement anotacao = tipoDaAnotacao(ITEM);
+        if (anotacao == null) {
+            return itens;
+        }
 
-        for (Element elemento : round.getElementsAnnotatedWith(Item.class)) {
+        for (Element elemento : round.getElementsAnnotatedWith(anotacao)) {
             ExecutableElement metodo = (ExecutableElement) elemento;
-            Item anotacao = metodo.getAnnotation(Item.class);
-            String descricao = anotacao.label().isEmpty() ? metodo.getSimpleName().toString() : anotacao.label();
+            String anotado = texto(metodo, ITEM, "label");
+            String descricao = anotado.isEmpty() ? metodo.getSimpleName().toString() : anotado;
 
             if (!metodo.getModifiers().contains(Modifier.STATIC)) {
                 erro(metodo, """
@@ -139,13 +154,11 @@ public class HarpiaProcessor extends AbstractProcessor {
                 continue;
             }
 
-            TypeElement dono = (TypeElement) metodo.getEnclosingElement();
-
             itens.add(new ItemModel(
                     metodo,
-                    dono,
+                    (TypeElement) metodo.getEnclosingElement(),
                     descricao,
-                    anotacao.order()));
+                    inteiro(metodo, ITEM, "order")));
         }
 
         return itens;
@@ -154,51 +167,58 @@ public class HarpiaProcessor extends AbstractProcessor {
     private List<MenuModel> coletarMenus(RoundEnvironment round) {
         List<MenuModel> menus = new ArrayList<>();
 
-        for (Element elemento : round.getElementsAnnotatedWith(Menu.class)) {
-            TypeElement tipo = (TypeElement) elemento;
-            Menu anotacao = tipo.getAnnotation(Menu.class);
+        TypeElement anotacaoMenu = tipoDaAnotacao(MENU);
+        if (anotacaoMenu != null) {
+            for (Element elemento : round.getElementsAnnotatedWith(anotacaoMenu)) {
+                TypeElement tipo = (TypeElement) elemento;
 
-            if (temAncestralDeMenu(tipo)) {
-                erro(tipo, """
-                        @Menu '%s' esta aninhado em outro menu.
-                        @Menu e sempre o no pai: para menus aninhados, use @Submenu."""
-                        .formatted(tipo.getQualifiedName()));
-                continue;
+                if (temAncestralDeMenu(tipo)) {
+                    erro(tipo, """
+                            @Menu '%s' esta aninhado em outro menu.
+                            @Menu e sempre o no pai: para menus aninhados, use @Submenu."""
+                            .formatted(tipo.getQualifiedName()));
+                    continue;
+                }
+
+                menus.add(new MenuModel(
+                        tipo,
+                        id(tipo),
+                        null,
+                        label(tipo),
+                        inteiro(tipo, MENU, "order")));
             }
-
-            menus.add(new MenuModel(
-                    tipo,
-                    id(anotacao.id(), tipo),
-                    null,
-                    label(anotacao.label(), tipo),
-                    anotacao.order()));
         }
 
-        for (Element elemento : round.getElementsAnnotatedWith(Submenu.class)) {
-            TypeElement tipo = (TypeElement) elemento;
-            Submenu anotacao = tipo.getAnnotation(Submenu.class);
+        TypeElement anotacaoSubmenu = tipoDaAnotacao(SUBMENU);
+        if (anotacaoSubmenu != null) {
+            for (Element elemento : round.getElementsAnnotatedWith(anotacaoSubmenu)) {
+                TypeElement tipo = (TypeElement) elemento;
 
-            if (tipo.getAnnotation(Menu.class) != null) {
-                erro(tipo, "@Menu e @Submenu nao podem estar na mesma classe.");
-                continue;
+                if (tem(tipo, MENU)) {
+                    erro(tipo, "@Menu e @Submenu nao podem estar na mesma classe.");
+                    continue;
+                }
+
+                String parent = texto(tipo, SUBMENU, "parent");
+                if (parent.isEmpty()) {
+                    parent = paiInferido(tipo);
+                }
+
+                if (parent == null) {
+                    erro(tipo, """
+                            @Submenu '%s' nao declara parent e nao esta aninhado em um menu anotado.
+                            Declare o pai: @Submenu(parent = "id-do-menu-pai", ...)."""
+                            .formatted(tipo.getQualifiedName()));
+                    continue;
+                }
+
+                menus.add(new MenuModel(
+                        tipo,
+                        id(tipo),
+                        parent,
+                        label(tipo),
+                        inteiro(tipo, SUBMENU, "order")));
             }
-
-            String parent = anotacao.parent().isEmpty() ? paiInferido(tipo) : anotacao.parent();
-
-            if (parent == null) {
-                erro(tipo, """
-                        @Submenu '%s' nao declara parent e nao esta aninhado em um menu anotado.
-                        Declare o pai: @Submenu(parent = "id-do-menu-pai", ...)."""
-                        .formatted(tipo.getQualifiedName()));
-                continue;
-            }
-
-            menus.add(new MenuModel(
-                    tipo,
-                    id(anotacao.id(), tipo),
-                    parent,
-                    label(anotacao.label(), tipo),
-                    anotacao.order()));
         }
 
         return menus;
@@ -207,7 +227,7 @@ public class HarpiaProcessor extends AbstractProcessor {
     private boolean temAncestralDeMenu(TypeElement tipo) {
         Element pai = tipo.getEnclosingElement();
         while (pai instanceof TypeElement paiTipo) {
-            if (paiTipo.getAnnotation(Menu.class) != null || paiTipo.getAnnotation(Submenu.class) != null) {
+            if (tem(paiTipo, MENU) || tem(paiTipo, SUBMENU)) {
                 return true;
             }
             pai = paiTipo.getEnclosingElement();
@@ -218,13 +238,11 @@ public class HarpiaProcessor extends AbstractProcessor {
     private String paiInferido(TypeElement tipo) {
         Element pai = tipo.getEnclosingElement();
         while (pai instanceof TypeElement paiTipo) {
-            Menu menu = paiTipo.getAnnotation(Menu.class);
-            if (menu != null) {
-                return id(menu.id(), paiTipo);
+            if (tem(paiTipo, MENU)) {
+                return id(paiTipo);
             }
-            Submenu submenu = paiTipo.getAnnotation(Submenu.class);
-            if (submenu != null) {
-                return id(submenu.id(), paiTipo);
+            if (tem(paiTipo, SUBMENU)) {
+                return id(paiTipo);
             }
             pai = paiTipo.getEnclosingElement();
         }
@@ -268,7 +286,7 @@ public class HarpiaProcessor extends AbstractProcessor {
 
     private boolean validarApp(TypeElement app, List<MenuModel> menus, List<ItemModel> itens) {
         boolean ok = validarAcessibilidade(app, itens);
-        boolean temJson = !app.getAnnotation(HarpiaMain.class).menus().isBlank();
+        boolean temJson = !texto(app, HARPIA_MAIN, "menus").isBlank();
         if (temJson) {
             return ok;
         }
@@ -339,7 +357,10 @@ public class HarpiaProcessor extends AbstractProcessor {
         String classe = app.getSimpleName() + SUFIXO;
         String fqn = pacoteNome.isEmpty() ? classe : pacoteNome + "." + classe;
 
-        HarpiaMain config = app.getAnnotation(HarpiaMain.class);
+        String titulo = texto(app, HARPIA_MAIN, "title");
+        int altura = inteiro(app, HARPIA_MAIN, "height");
+        String arquivoMenus = texto(app, HARPIA_MAIN, "menus");
+
         StringBuilder sb = new StringBuilder();
 
         if (!pacoteNome.isEmpty()) {
@@ -371,9 +392,9 @@ public class HarpiaProcessor extends AbstractProcessor {
                 """.formatted(
                 classe,
                 app.getQualifiedName(),
-                escapar(config.title()),
-                config.height(),
-                escapar(config.menus())));
+                escapar(titulo),
+                altura,
+                escapar(arquivoMenus)));
 
         if (menus.isEmpty()) {
             sb.append("        return List.of();\n");
@@ -502,7 +523,8 @@ public class HarpiaProcessor extends AbstractProcessor {
         }
     }
 
-    private void escreverServiceFile(List<String> registros, Element origem) {        try (Writer writer = processingEnv.getFiler()
+    private void escreverServiceFile(List<String> registros, Element origem) {
+        try (Writer writer = processingEnv.getFiler()
                 .createResource(StandardLocation.CLASS_OUTPUT, "", "META-INF/services/" + SPI, origem)
                 .openWriter()) {
             for (String registro : registros) {
@@ -514,13 +536,59 @@ public class HarpiaProcessor extends AbstractProcessor {
         }
     }
 
+    // ------------------------------------------------------------------ annotations
+
+    private TypeElement tipoDaAnotacao(String fqn) {
+        return processingEnv.getElementUtils().getTypeElement(fqn);
+    }
+
+    private static AnnotationMirror anotacao(Element elemento, String fqn) {
+        for (AnnotationMirror mirror : elemento.getAnnotationMirrors()) {
+            if (mirror.getAnnotationType().asElement().toString().equals(fqn)) {
+                return mirror;
+            }
+        }
+        return null;
+    }
+
+    private static boolean tem(Element elemento, String fqn) {
+        return anotacao(elemento, fqn) != null;
+    }
+
+    private Object valor(Element elemento, String fqn, String campo) {
+        AnnotationMirror mirror = anotacao(elemento, fqn);
+        if (mirror == null) {
+            return null;
+        }
+
+        for (Map.Entry<? extends ExecutableElement, ? extends AnnotationValue> entrada
+                : processingEnv.getElementUtils().getElementValuesWithDefaults(mirror).entrySet()) {
+            if (entrada.getKey().getSimpleName().contentEquals(campo)) {
+                return entrada.getValue().getValue();
+            }
+        }
+        return null;
+    }
+
+    private String texto(Element elemento, String fqn, String campo) {
+        Object valor = valor(elemento, fqn, campo);
+        return valor == null ? "" : valor.toString();
+    }
+
+    private int inteiro(Element elemento, String fqn, String campo) {
+        Object valor = valor(elemento, fqn, campo);
+        return valor instanceof Integer numero ? numero : 0;
+    }
+
     // ------------------------------------------------------------------ util
 
-    private static String id(String anotado, TypeElement tipo) {
+    private String id(TypeElement tipo) {
+        String anotado = tem(tipo, MENU) ? texto(tipo, MENU, "id") : texto(tipo, SUBMENU, "id");
         return anotado == null || anotado.isEmpty() ? tipo.getSimpleName().toString() : anotado;
     }
 
-    private static String label(String anotado, TypeElement tipo) {
+    private String label(TypeElement tipo) {
+        String anotado = tem(tipo, MENU) ? texto(tipo, MENU, "label") : texto(tipo, SUBMENU, "label");
         return anotado == null || anotado.isEmpty() ? tipo.getSimpleName().toString() : anotado;
     }
 
