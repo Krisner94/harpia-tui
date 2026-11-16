@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Exemplo de ~/.m2/settings.xml para autenticar no GitHub Packages.
+
+  GitHub Packages exige credencial tanto para publicar quanto para LER,
+  mesmo em repositório público.
+
+  Crie um Personal Access Token (classic) com escopo:
+    - write:packages  (para publicar)
+    - read:packages   (para consumir)
+
+  E exporte:  export GITHUB_TOKEN=ghp_xxx
+-->
+<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0 https://maven.apache.org/xsd/settings-1.0.0.xsd">
+
+    <servers>
+        <server>
+            <id>github</id>
+            <username>Krisner94</username>
+            <password>${env.GITHUB_TOKEN}</password>
+        </server>
+    </servers>
+
+</settings>

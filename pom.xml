@@ -12,6 +12,26 @@
 
     <name>HarpiaTUI Parent</name>
     <description>TUI inline declarativa para Java, com resolucao em tempo de compilacao</description>
+    <url>https://github.com/Krisner94/harpia-tui</url>
+
+    <scm>
+        <url>https://github.com/Krisner94/harpia-tui</url>
+        <connection>scm:git:git@github.com:Krisner94/harpia-tui.git</connection>
+        <developerConnection>scm:git:git@github.com:Krisner94/harpia-tui.git</developerConnection>
+    </scm>
+
+    <distributionManagement>
+        <repository>
+            <id>github</id>
+            <name>GitHub Packages</name>
+            <url>https://maven.pkg.github.com/Krisner94/harpia-tui</url>
+        </repository>
+        <snapshotRepository>
+            <id>github</id>
+            <name>GitHub Packages</name>
+            <url>https://maven.pkg.github.com/Krisner94/harpia-tui</url>
+        </snapshotRepository>
+    </distributionManagement>
 
     <modules>
         <module>harpiatui</module>

@@ -78,7 +78,7 @@ pacote (`MinhaApp_HarpiaLauncher`). Para você é igual: continua sem escrever
 - Java 21+
 - Um **terminal de verdade** para executar apps (inline TUI não funciona pela IDE)
 
-## Instalar
+## Instalar localmente (desenvolvimento)
 
 ```bash
 mvn install
@@ -86,6 +86,26 @@ mvn install
 
 Publica `com.github.rhama:harpiatui` e `com.github.rhama:harpiatui-processor`
 em `~/.m2/repository`.
+
+## Publicar no GitHub Packages
+
+O projeto já tem `distributionManagement` apontando para
+`https://maven.pkg.github.com/Krisner94/harpia-tui`.
+
+**Pela CI (recomendado):** publique uma *Release* no GitHub. O workflow
+`.github/workflows/publish.yml` roda `mvn deploy` com o `GITHUB_TOKEN` e publica
+os artifacts. Também dá para disparar à mão em *Actions → publish → Run workflow*.
+
+**Da sua máquina:** copie `settings.xml.example` para `~/.m2/settings.xml`,
+exporte um PAT e rode:
+
+```bash
+export GITHUB_TOKEN=ghp_xxx        # escopo write:packages
+mvn deploy -DskipTests
+```
+
+> GitHub Packages **não aceita sobrescrever** uma versão já publicada. Para
+> publicar de novo, suba a versão (`mvn versions:set -DnewVersion=1.0.1`).
 
 ## Usar em outro projeto
 
@@ -124,6 +144,15 @@ E, por causa do TamboUI transitivo (só existe como snapshot):
 
 ```xml
 <repositories>
+    <!-- artifacts publicados pelo harpia-tui -->
+    <repository>
+        <id>github</id>
+        <url>https://maven.pkg.github.com/Krisner94/harpia-tui</url>
+        <releases><enabled>true</enabled></releases>
+        <snapshots><enabled>true</enabled></snapshots>
+    </repository>
+
+    <!-- dependencias do TamboUI -->
     <repository>
         <id>ossrh-snapshots</id>
         <url>https://central.sonatype.com/repository/maven-snapshots/</url>
@@ -132,6 +161,23 @@ E, por causa do TamboUI transitivo (só existe como snapshot):
     </repository>
 </repositories>
 ```
+
+**Autenticação (obrigatória):** o GitHub Packages exige credencial até para ler,
+mesmo em repositório público. No seu `~/.m2/settings.xml`:
+
+```xml
+<settings>
+    <servers>
+        <server>
+            <id>github</id>
+            <username>Krisner94</username>
+            <password>${env.GITHUB_TOKEN}</password>
+        </server>
+    </servers>
+</settings>
+```
+
+com `export GITHUB_TOKEN=ghp_xxx` (escopo `read:packages`).
 
 Gradle:
 
