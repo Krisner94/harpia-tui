@@ -9,13 +9,12 @@ import java.lang.annotation.Target;
 /**
  * Marca a classe que inicializa uma aplicacao DuckTUI.
  *
- * <p>Funciona como o {@code @SpringBootApplication}: a classe anotada nao precisa
- * estender nada nem declarar menus. O launcher varre o classpath procurando
- * {@link Menu @Menu}, {@link Submenu @Submenu} e {@link Item @Item} e monta a
- * arvore sozinho.
+ * <p>A annotation tem retencao {@link RetentionPolicy#SOURCE}: ela existe apenas
+ * em tempo de compilacao. O {@code ducktui-processor} le esta classe, gera um
+ * registro com a arvore de menus e o runtime nunca precisa reler a annotation.
  *
  * <pre>{@code
- * @DuckTui(title = "DuckTUI")
+ * @DuckTui(title = "Minha App")
  * public class MinhaApp {
  *     public static void main(String[] args) throws Exception {
  *         DuckTuiLauncher.launch(MinhaApp.class);
@@ -24,7 +23,7 @@ import java.lang.annotation.Target;
  * }</pre>
  */
 @Documented
-@Retention(RetentionPolicy.RUNTIME)
+@Retention(RetentionPolicy.SOURCE)
 @Target(ElementType.TYPE)
 public @interface DuckTui {
 
@@ -32,22 +31,14 @@ public @interface DuckTui {
     String title() default "DuckTUI";
 
     /**
-     * Pacotes varridos em busca de menus (inclui subpacotes).
-     * Vazio (padrao) = o pacote desta classe e seus subpacotes.
-     *
-     * <p>Servem tanto para descobrir classes anotadas quanto para resolver os
-     * nomes de classe citados no arquivo de menus.
-     */
-    String[] scan() default {};
-
-    /**
      * Arquivo JSON que descreve a arvore de menus.
      *
      * <p>Vazio (padrao) = usa as annotations {@link Menu @Menu}/{@link Submenu @Submenu}.
-     * Preenchido = as annotations sao ignoradas e o arquivo manda na estrutura.
+     * Preenchido = o JSON manda na estrutura; as annotations ficam apenas como
+     * fonte dos metodos {@link Item @Item}.
      *
-     * <p>O caminho e procurado primeiro no classpath (ex.: {@code menus.json}
-     * dentro de {@code src/main/resources}) e depois no disco.
+     * <p>O caminho e resolvido em runtime: primeiro no classpath (ex.:
+     * {@code menus.json} em {@code src/main/resources}) e depois no disco.
      */
     String menus() default "";
 

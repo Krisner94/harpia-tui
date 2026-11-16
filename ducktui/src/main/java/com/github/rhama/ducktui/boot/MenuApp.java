@@ -2,7 +2,9 @@ package com.github.rhama.ducktui.boot;
 
 import static dev.tamboui.toolkit.Toolkit.*;
 
-import com.github.rhama.ducktui.annotation.DuckTui;
+import com.github.rhama.ducktui.spi.DuckTuiRegistry;
+import com.github.rhama.ducktui.spi.DuckTuiSettings;
+
 import dev.tamboui.toolkit.app.InlineApp;
 import dev.tamboui.toolkit.element.Element;
 import dev.tamboui.toolkit.elements.TextElement;
@@ -13,19 +15,21 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Aplicacao inline que desenha a arvore de menus montada pelo {@link MenuScanner}.
+ * Aplicacao inline que desenha a arvore de menus.
  *
- * <p>Ela e criada por {@link DuckTuiLauncher}; voce normalmente nao instancia esta
- * classe a mao.
+ * <p>Criada pelo {@link DuckTuiLauncher}. A execucao de um item e delegada ao
+ * {@link DuckTuiRegistry} gerado na compilacao.
  */
 final class MenuApp extends InlineApp {
 
-    private final DuckTui config;
+    private final DuckTuiSettings settings;
+    private final DuckTuiRegistry registry;
     private final List<MenuEntry> plana = new ArrayList<>();
     private int selecionado = 0;
 
-    MenuApp(DuckTui config, List<MenuEntry> arvore) {
-        this.config = config;
+    MenuApp(DuckTuiSettings settings, DuckTuiRegistry registry, List<MenuEntry> arvore) {
+        this.settings = settings;
+        this.registry = registry;
         for (MenuEntry raiz : arvore) {
             raiz.flattenInto(plana);
         }
@@ -33,8 +37,8 @@ final class MenuApp extends InlineApp {
 
     @Override
     protected int height() {
-        if (config.height() > 0) {
-            return config.height();
+        if (settings.height() > 0) {
+            return settings.height();
         }
         // cabecalho + uma linha por entrada + dica de teclas
         return plana.size() + 2;
@@ -44,7 +48,7 @@ final class MenuApp extends InlineApp {
     protected Element render() {
         List<Element> linhas = new ArrayList<>(plana.size() + 2);
 
-        linhas.add(text(config.title()).cyan().bold());
+        linhas.add(text(settings.title()).cyan().bold());
         for (int i = 0; i < plana.size(); i++) {
             linhas.add(linha(plana.get(i), i == selecionado));
         }
@@ -107,7 +111,7 @@ final class MenuApp extends InlineApp {
         }
 
         try {
-            Object resultado = entrada.invoke();
+            Object resultado = registry.invoke(entrada.actionId());
             if (resultado == null) {
                 println(text("ok  " + entrada.label()).green());
             } else {
