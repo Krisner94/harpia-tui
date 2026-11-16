@@ -1,26 +1,32 @@
-# DuckTUI
+# HarpiaTUI
 
 Biblioteca Java para TUIs de terminal **inline** e **declarativas**, sobre
 [TamboUI](https://tamboui.dev/docs/main/).
 
-A árvore de menus é resolvida em **tempo de compilação**, no estilo Quarkus: um
-annotation processor lê as anotações e gera um *registro*. Em runtime não há
-varredura de classpath nem reflexão sobre as anotações.
+Você anota a classe com `@HarpiaMain` e **não escreve `main`**: o
+`harpiatui-processor` gera o ponto de entrada e o registro de menus na
+compilação. Em runtime não há varredura de classpath nem reflexão sobre as
+anotações.
 
 ```java
-@DuckTui(title = "Minha App")
+@HarpiaMain(title = "Minha App")
 public class MinhaApp {
-    public static void main(String[] args) throws Exception {
-        DuckTuiLauncher.launch(MinhaApp.class);
+
+    @Menu(id = "arquivo", label = "Arquivo", order = 1)
+    public static class Arquivo {
+        @Item(label = "Novo")
+        public static String novo() { return "criado"; }
     }
 }
 ```
 
+`MinhaApp` não tem `main`. A compilação gera:
+
 ```java
-@Menu(id = "arquivo", label = "Arquivo", order = 1)
-public class ArquivoMenu {
-    @Item(label = "Novo")
-    public static String novo() { return "criado"; }
+public final class MinhaApp_HarpiaLauncher {
+    public static void main(String[] args) throws Exception {
+        HarpiaLauncher.launch(new MinhaApp_HarpiaRegistry());
+    }
 }
 ```
 
@@ -36,19 +42,17 @@ e o que você imprime com `println()` rola para cima, acima dele.
 
 ## Como funciona (build × runtime)
 
-**Build** — o `ducktui-processor` roda dentro do `javac`:
+**Build** — o `harpiatui-processor` roda dentro do `javac`:
 
-1. lê `@DuckTui`, `@Menu`, `@Submenu`, `@Item` do modelo de fontes;
+1. lê `@HarpiaMain`, `@Menu`, `@Submenu`, `@Item` do modelo de fontes;
 2. valida a estrutura (ids, parents, ciclos, assinaturas);
-3. gera `MinhaApp_DuckTuiRegistry`, que devolve os metadados e implementa
-   `invoke(...)` com um `switch` chamando os métodos **diretamente**;
-4. registra a classe em `META-INF/services/...DuckTuiRegistry`.
+3. gera `MinhaApp_HarpiaRegistry` com os metadados e um `switch` que chama os
+   métodos `@Item` **diretamente**;
+4. gera `MinhaApp_HarpiaLauncher` com o `main`;
+5. registra o registro em `META-INF/services` (fallback de `launch(Class)`).
 
-**Runtime**:
-
-1. `ServiceLoader` localiza o registro (um `ClassLoader` lookup, sem varredura);
-2. monta a árvore a partir das listas já prontas;
-3. ao executar um item, chama `registry.invoke(id)` — um `switch` compilado.
+**Runtime**: monta a árvore a partir das listas já prontas e executa itens por
+`switch`. O caminho normal (`MinhaApp_HarpiaLauncher`) nem usa `ServiceLoader`.
 
 O que **não** existe em runtime: `Class.forName`, `Files.walk`, `getResources`
 sobre diretórios, `isAnnotationPresent`, `getDeclaredMethods`, `Method.invoke`,
@@ -58,7 +62,16 @@ sobre diretórios, `isAnnotationPresent`, `getDeclaredMethods`, `Method.invoke`,
 | --- | --- | --- |
 | Descobrir menus | varria todas as classes do pacote | lista constante gerada |
 | Executar item | `Method.invoke` | chamada estática direta |
+| Escrever `main` | você | gerado no build |
 | Erro de estrutura | exception no start | **erro de compilação** |
+
+## Por que o `main` nasce em outra classe
+
+Java não permite que uma annotation adicione um método à classe anotada — só
+ferramentas que mexem na AST do `javac` fazem isso (Lombok), com APIs internas e
+risco de quebrar. A alternativa estável é gerar uma classe companheira no mesmo
+pacote (`MinhaApp_HarpiaLauncher`). Para você é igual: continua sem escrever
+`main`, e o nome é previsível.
 
 ## Requisitos
 
@@ -71,18 +84,18 @@ sobre diretórios, `isAnnotationPresent`, `getDeclaredMethods`, `Method.invoke`,
 mvn install
 ```
 
-Publica `com.github.rhama:ducktui` e `com.github.rhama:ducktui-processor` em
-`~/.m2/repository`.
+Publica `com.github.rhama:harpiatui` e `com.github.rhama:harpiatui-processor`
+em `~/.m2/repository`.
 
 ## Usar em outro projeto
 
-Duas dependências — a lib e o processor:
+Dependência + annotation processor:
 
 ```xml
 <dependencies>
     <dependency>
         <groupId>com.github.rhama</groupId>
-        <artifactId>ducktui</artifactId>
+        <artifactId>harpiatui</artifactId>
         <version>1.0.0-SNAPSHOT</version>
     </dependency>
 </dependencies>
@@ -97,7 +110,7 @@ Duas dependências — a lib e o processor:
                 <annotationProcessorPaths>
                     <path>
                         <groupId>com.github.rhama</groupId>
-                        <artifactId>ducktui-processor</artifactId>
+                        <artifactId>harpiatui-processor</artifactId>
                         <version>1.0.0-SNAPSHOT</version>
                     </path>
                 </annotationProcessorPaths>
@@ -123,28 +136,37 @@ E, por causa do TamboUI transitivo (só existe como snapshot):
 Gradle:
 
 ```kotlin
-repositories {
-    mavenLocal()
-    maven {
-        url = uri("https://central.sonatype.com/repository/maven-snapshots/")
-        mavenContent { snapshotsOnly() }
-    }
-}
-
 dependencies {
-    implementation("com.github.rhama:ducktui:1.0.0-SNAPSHOT")
-    annotationProcessor("com.github.rhama:ducktui-processor:1.0.0-SNAPSHOT")
+    implementation("com.github.rhama:harpiatui:1.0.0-SNAPSHOT")
+    annotationProcessor("com.github.rhama:harpiatui-processor:1.0.0-SNAPSHOT")
 }
 ```
 
 > **Sem o processor não funciona.** O runtime não descobre nada sozinho — se o
-> registro não existir, `launch` falha com uma mensagem mostrando como configurar.
+> registro não existir, o start falha mostrando como configurar.
+
+## Rodar
+
+O ponto de entrada é a classe gerada:
+
+```bash
+mvn -q compile exec:java \
+  -Dexec.mainClass=com.exemplo.MinhaApp_HarpiaLauncher
+```
+
+No `pom.xml`, dá para fixar:
+
+```xml
+<properties>
+    <main.class>com.exemplo.MinhaApp_HarpiaLauncher</main.class>
+</properties>
+```
 
 ## Annotations
 
 | Annotation | Onde vai | Campos | Regra |
 | --- | --- | --- | --- |
-| `@DuckTui` | classe com `main` | `title`, `menus`, `height` | uma por app |
+| `@HarpiaMain` | classe da aplicação | `title`, `menus`, `height` | uma por app; gera o `main` |
 | `@Menu` | qualquer classe | `id`, `label`, `order` | **sempre pai**: sem `parent` |
 | `@Submenu` | qualquer classe | `id`, `parent`, `label`, `order` | **sempre filho** de um menu |
 | `@Item` | método `public static` sem args | `label`, `order` | folha executável |
@@ -152,19 +174,21 @@ dependencies {
 - `id` vazio = nome simples da classe; `label` vazio idem (em `@Item`, o nome do método).
 - `order` posiciona entre irmãos; empate desempata pelo label.
 - `@Submenu` aninhado em classe anotada dispensa `parent`.
-- `@Item` deve ser `public static` (chamada direta). A classe dona precisa ser
-  `public` se estiver em pacote diferente do registro.
+- A classe dona de um `@Item` precisa ser `public` se estiver em outro pacote.
 - Se o método devolver algo, o valor é impresso acima do status.
 
 ## Árvore por arquivo JSON
 
 ```java
-@DuckTui(title = "Minha App", menus = "menus.json")
-public class MinhaApp { /* ... */ }
+@HarpiaMain(title = "Minha App", menus = "menus.json")
+public class MinhaApp {
+    @Item(label = "Recarregar")
+    public static String recarregar() { return "ok"; }
+}
 ```
 
 Lido **em runtime** (classpath, depois disco), então editar o JSON não exige
-recompilar. A resolução ainda usa o registro gerado — nada de reflexão.
+recompilar. A resolução usa o registro gerado — nada de reflexão.
 
 ```json
 {
@@ -203,24 +227,12 @@ src/main/java/app/Main.java:[6,55] Id de menu duplicado: 'mesmo'.
 src/main/java/app/Main.java:[6,65] Ciclo de menu detectado envolvendo 'a'.
 ```
 
-## Sobre o "zero reflexão"
-
-O único mecanismo reflexivo que sobra é o `ServiceLoader` carregar a classe
-gerada. Não há varredura nem inspeção de membros. Se quiser eliminar até isso,
-passe o registro direto:
-
-```java
-DuckTuiLauncher.launch(new MinhaApp_DuckTuiRegistry());
-```
-
-A classe gerada é `public final`, então dá para instanciá-la normalmente.
-
 ## Limites
 
-- Um `@DuckTui` por app; vários apps no mesmo módulo geram um registro cada.
 - O processor vê apenas as fontes do módulo compilado. Menus vindos de uma
   dependência precisam ter sido compilados com o processor nessa dependência.
 - `@Item` sem reflexão implica `public static` e sem parâmetros.
+- A classe gerada do `main` tem nome previsível, mas é gerada — não edite.
 - Validação de JSON é em runtime (o arquivo não é conhecido no build).
 
 ## Licença

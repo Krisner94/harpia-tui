@@ -6,16 +6,16 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>com.github.rhama</groupId>
-    <artifactId>ducktui-parent</artifactId>
+    <artifactId>harpiatui-parent</artifactId>
     <version>1.0.0-SNAPSHOT</version>
     <packaging>pom</packaging>
 
-    <name>DuckTUI Parent</name>
+    <name>HarpiaTUI Parent</name>
     <description>TUI inline declarativa para Java, com resolucao em tempo de compilacao</description>
 
     <modules>
-        <module>ducktui</module>
-        <module>ducktui-processor</module>
+        <module>harpiatui</module>
+        <module>harpiatui-processor</module>
     </modules>
 
     <properties>
@@ -57,12 +57,12 @@
 
             <dependency>
                 <groupId>${project.groupId}</groupId>
-                <artifactId>ducktui</artifactId>
+                <artifactId>harpiatui</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>${project.groupId}</groupId>
-                <artifactId>ducktui-processor</artifactId>
+                <artifactId>harpiatui-processor</artifactId>
                 <version>${project.version}</version>
             </dependency>
         </dependencies>
