@@ -1,4 +1,4 @@
-package com.github.rhama.harpiatui.processor;
+package com.github.krisner94.harpiatui.processor;
 
 import javax.annotation.processing.AbstractProcessor;
 import javax.annotation.processing.RoundEnvironment;
@@ -47,21 +47,21 @@ import java.util.Set;
  * viram erro de compilacao.
  */
 @SupportedAnnotationTypes({
-        "com.github.rhama.harpiatui.annotation.HarpiaMain",
-        "com.github.rhama.harpiatui.annotation.Menu",
-        "com.github.rhama.harpiatui.annotation.Submenu",
-        "com.github.rhama.harpiatui.annotation.Item"
+        "com.github.krisner94.harpiatui.annotation.HarpiaMain",
+        "com.github.krisner94.harpiatui.annotation.Menu",
+        "com.github.krisner94.harpiatui.annotation.Submenu",
+        "com.github.krisner94.harpiatui.annotation.Item"
 })
 @SupportedSourceVersion(SourceVersion.RELEASE_21)
 public class HarpiaProcessor extends AbstractProcessor {
 
-    private static final String PACOTE = "com.github.rhama.harpiatui.annotation.";
+    private static final String PACOTE = "com.github.krisner94.harpiatui.annotation.";
     private static final String HARPIA_MAIN = PACOTE + "HarpiaMain";
     private static final String MENU = PACOTE + "Menu";
     private static final String SUBMENU = PACOTE + "Submenu";
     private static final String ITEM = PACOTE + "Item";
 
-    private static final String SPI = "com.github.rhama.harpiatui.spi.HarpiaRegistry";
+    private static final String SPI = "com.github.krisner94.harpiatui.spi.HarpiaRegistry";
     private static final String SUFIXO = "_HarpiaRegistry";
 
     private boolean gerado;
@@ -368,10 +368,10 @@ public class HarpiaProcessor extends AbstractProcessor {
         }
 
         sb.append("""
-                import com.github.rhama.harpiatui.spi.HarpiaRegistry;
-                import com.github.rhama.harpiatui.spi.HarpiaSettings;
-                import com.github.rhama.harpiatui.spi.ItemDescriptor;
-                import com.github.rhama.harpiatui.spi.MenuDescriptor;
+                import com.github.krisner94.harpiatui.spi.HarpiaRegistry;
+                import com.github.krisner94.harpiatui.spi.HarpiaSettings;
+                import com.github.krisner94.harpiatui.spi.ItemDescriptor;
+                import com.github.krisner94.harpiatui.spi.MenuDescriptor;
                 import java.util.List;
 
                 /** Gerado por harpiatui-processor. Nao edite. */
@@ -499,7 +499,7 @@ public class HarpiaProcessor extends AbstractProcessor {
         }
 
         sb.append("""
-                import com.github.rhama.harpiatui.boot.HarpiaLauncher;
+                import com.github.krisner94.harpiatui.boot.HarpiaLauncher;
 
                 /**
                  * Gerado por harpiatui-processor. Nao edite.

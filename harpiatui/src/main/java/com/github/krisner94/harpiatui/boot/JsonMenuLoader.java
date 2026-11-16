@@ -1,4 +1,4 @@
-package com.github.rhama.harpiatui.boot;
+package com.github.krisner94.harpiatui.boot;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;

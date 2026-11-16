@@ -84,7 +84,7 @@ pacote (`MinhaApp_HarpiaLauncher`). Para você é igual: continua sem escrever
 mvn install
 ```
 
-Publica `com.github.rhama:harpiatui` e `com.github.rhama:harpiatui-processor`
+Publica `com.github.krisner94:harpiatui` e `com.github.krisner94:harpiatui-processor`
 em `~/.m2/repository`.
 
 ## Publicar no GitHub Packages
@@ -114,7 +114,7 @@ Basta a dependência:
 ```xml
 <dependencies>
     <dependency>
-        <groupId>com.github.rhama</groupId>
+        <groupId>com.github.krisner94</groupId>
         <artifactId>harpiatui</artifactId>
         <version>1.0.0-SNAPSHOT</version>
     </dependency>
@@ -142,7 +142,7 @@ Gradle:
 
 ```kotlin
 dependencies {
-    implementation("com.github.rhama:harpiatui:1.0.0-SNAPSHOT")
+    implementation("com.github.krisner94:harpiatui:1.0.0-SNAPSHOT")
 }
 ```
 
@@ -159,7 +159,7 @@ padrão. Nesse caso, declare o caminho — o artifact já está disponível:
     <configuration>
         <annotationProcessorPaths>
             <path>
-                <groupId>com.github.rhama</groupId>
+                <groupId>com.github.krisner94</groupId>
                 <artifactId>harpiatui-processor</artifactId>
                 <version>1.0.0-SNAPSHOT</version>
             </path>
@@ -213,8 +213,8 @@ Gradle:
 
 ```kotlin
 dependencies {
-    implementation("com.github.rhama:harpiatui:1.0.0-SNAPSHOT")
-    annotationProcessor("com.github.rhama:harpiatui-processor:1.0.0-SNAPSHOT")
+    implementation("com.github.krisner94:harpiatui:1.0.0-SNAPSHOT")
+    annotationProcessor("com.github.krisner94:harpiatui-processor:1.0.0-SNAPSHOT")
 }
 ```
 

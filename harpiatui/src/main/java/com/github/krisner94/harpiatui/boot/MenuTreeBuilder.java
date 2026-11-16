@@ -1,8 +1,8 @@
-package com.github.rhama.harpiatui.boot;
+package com.github.krisner94.harpiatui.boot;
 
-import com.github.rhama.harpiatui.spi.HarpiaRegistry;
-import com.github.rhama.harpiatui.spi.ItemDescriptor;
-import com.github.rhama.harpiatui.spi.MenuDescriptor;
+import com.github.krisner94.harpiatui.spi.HarpiaRegistry;
+import com.github.krisner94.harpiatui.spi.ItemDescriptor;
+import com.github.krisner94.harpiatui.spi.MenuDescriptor;
 
 import java.util.ArrayList;
 import java.util.Comparator;

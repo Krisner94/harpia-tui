@@ -1,4 +1,4 @@
-package com.github.rhama.harpiatui.annotation;
+package com.github.krisner94.harpiatui.annotation;
 
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;

@@ -1,4 +1,4 @@
-package com.github.rhama.harpiatui.spi;
+package com.github.krisner94.harpiatui.spi;
 
 import java.util.List;
 

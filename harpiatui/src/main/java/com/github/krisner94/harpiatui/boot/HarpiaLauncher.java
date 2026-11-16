@@ -1,7 +1,7 @@
-package com.github.rhama.harpiatui.boot;
+package com.github.krisner94.harpiatui.boot;
 
-import com.github.rhama.harpiatui.spi.HarpiaRegistry;
-import com.github.rhama.harpiatui.spi.HarpiaSettings;
+import com.github.krisner94.harpiatui.spi.HarpiaRegistry;
+import com.github.krisner94.harpiatui.spi.HarpiaSettings;
 
 import java.util.List;
 import java.util.ServiceLoader;
@@ -78,7 +78,7 @@ public final class HarpiaLauncher {
                     <configuration>
                       <annotationProcessorPaths>
                         <path>
-                          <groupId>com.github.rhama</groupId>
+                          <groupId>com.github.krisner94</groupId>
                           <artifactId>harpiatui-processor</artifactId>
                           <version>1.0.0-SNAPSHOT</version>
                         </path>

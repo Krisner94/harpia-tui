@@ -1,9 +1,9 @@
-package com.github.rhama.harpiatui.boot;
+package com.github.krisner94.harpiatui.boot;
 
 import static dev.tamboui.toolkit.Toolkit.*;
 
-import com.github.rhama.harpiatui.spi.HarpiaRegistry;
-import com.github.rhama.harpiatui.spi.HarpiaSettings;
+import com.github.krisner94.harpiatui.spi.HarpiaRegistry;
+import com.github.krisner94.harpiatui.spi.HarpiaSettings;
 
 import dev.tamboui.toolkit.app.InlineApp;
 import dev.tamboui.toolkit.element.Element;

@@ -6,7 +6,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>com.github.rhama</groupId>
+        <groupId>com.github.krisner94</groupId>
         <artifactId>harpiatui-parent</artifactId>
         <version>1.0.0-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
@@ -29,7 +29,7 @@
           o javac descobre processors no classpath.
         -->
         <dependency>
-            <groupId>com.github.rhama</groupId>
+            <groupId>com.github.krisner94</groupId>
             <artifactId>harpiatui-processor</artifactId>
         </dependency>
 
@@ -60,7 +60,7 @@
                 <configuration>
                     <archive>
                         <manifestEntries>
-                            <Automatic-Module-Name>com.github.rhama.harpiatui</Automatic-Module-Name>
+                            <Automatic-Module-Name>com.github.krisner94.harpiatui</Automatic-Module-Name>
                         </manifestEntries>
                     </archive>
                 </configuration>
