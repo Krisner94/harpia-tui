@@ -16,6 +16,12 @@ import java.lang.annotation.Target;
  * <pre>{@code
  * @HarpiaMain(title = "Minha App")
  * public class MinhaApp {
+ *
+ *     // gancho de inicializacao: roda antes da TUI subir
+ *     public static void Main(String[] args) {
+ *         // carregar config, abrir conexao, etc.
+ *     }
+ *
  *     @Menu(label = "Arquivo")
  *     public static class Arquivo {
  *         @Item(label = "Novo")
@@ -25,7 +31,12 @@ import java.lang.annotation.Target;
  * }</pre>
  *
  * <p>Nao e preciso escrever {@code main}: o processor gera
- * {@code MinhaApp_HarpiaLauncher} com o ponto de entrada.
+ * {@code MinhaApp_HarpiaLauncher} com o ponto de entrada, que chama
+ * {@code MinhaApp.Main(...)} e depois sobe a TUI.
+ *
+ * <p>O gancho {@code Main} e opcional. Assinaturas aceitas:
+ * {@code public static void Main()} ou
+ * {@code public static void Main(String[] args)}.
  */
 @Documented
 @Retention(RetentionPolicy.SOURCE)

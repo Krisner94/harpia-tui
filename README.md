@@ -73,6 +73,48 @@ risco de quebrar. A alternativa estável é gerar uma classe companheira no mesm
 pacote (`MinhaApp_HarpiaLauncher`). Para você é igual: continua sem escrever
 `main`, e o nome é previsível.
 
+## O gancho de inicialização: `Main`
+
+Se quiser rodar código antes da TUI subir, declare um método `Main` na própria
+classe anotada:
+
+```java
+@HarpiaMain(title = "Minha App")
+public class MinhaApp {
+
+    public static void Main(String[] args) {
+        // carregar config, abrir conexao, ajustar variaveis...
+    }
+
+    @Menu(label = "Arquivo")
+    public static class Arquivo {
+        @Item(label = "Novo")
+        public static String novo() { return "criado"; }
+    }
+}
+```
+
+O launcher gerado passa a ser:
+
+```java
+public static void main(String[] args) throws Exception {
+    MinhaApp.Main(args);                                    // seu gancho
+    HarpiaLauncher.launch(new MinhaApp_HarpiaRegistry());    // sobe a TUI
+}
+```
+
+Regras validadas na compilação:
+
+| Assinatura | Resultado |
+| --- | --- |
+| `public static void Main()` | ok |
+| `public static void Main(String[] args)` | ok (recebe os args) |
+| `void Main()` sem `static` | erro de compilação |
+| `public static int Main()` | erro de compilação |
+| `public static void Main(int)` | erro de compilação |
+
+O gancho é **opcional** — sem ele, o launcher só sobe a TUI.
+
 ## Requisitos
 
 - Java 21+

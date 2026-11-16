@@ -8,6 +8,7 @@ import javax.lang.model.SourceVersion;
 import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.AnnotationValue;
 import javax.lang.model.element.Element;
+import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.PackageElement;
@@ -485,13 +486,20 @@ public class HarpiaProcessor extends AbstractProcessor {
      *
      * <p>Java nao permite que uma annotation adicione um metodo a classe
      * anotada, entao o ponto de entrada nasce numa classe companheira no mesmo
-     * pacote. Ela instancia o registro direto — sem {@code ServiceLoader}.
+     * pacote. Ela:
+     * <ol>
+     *   <li>chama o gancho de inicializacao {@code public static void Main(...)}
+     *       da sua classe, se ele existir;</li>
+     *   <li>instancia o registro direto (sem {@code ServiceLoader}) e sobe a TUI.</li>
+     * </ol>
      */
     private void gerarLauncher(TypeElement app) throws IOException {
         PackageElement pacote = processingEnv.getElementUtils().getPackageOf(app);
         String pacoteNome = pacote.isUnnamed() ? "" : pacote.getQualifiedName().toString();
         String classe = app.getSimpleName() + "_HarpiaLauncher";
         String fqn = pacoteNome.isEmpty() ? classe : pacoteNome + "." + classe;
+
+        String inicializacao = invocacaoInicializacao(app);
 
         StringBuilder sb = new StringBuilder();
         if (!pacoteNome.isEmpty()) {
@@ -512,15 +520,84 @@ public class HarpiaProcessor extends AbstractProcessor {
                     }
 
                     public static void main(String[] args) throws Exception {
-                        HarpiaLauncher.launch(new %s_HarpiaRegistry());
-                    }
-                }
-                """.formatted(classe, classe, app.getSimpleName()));
+                """.formatted(classe, classe));
+
+        if (inicializacao != null) {
+            sb.append("        ").append(inicializacao).append('\n');
+        }
+
+        sb.append("        HarpiaLauncher.launch(new ")
+                .append(app.getSimpleName())
+                .append("_HarpiaRegistry());\n");
+        sb.append("    }\n}\n");
 
         JavaFileObject arquivo = processingEnv.getFiler().createSourceFile(fqn, app);
         try (Writer writer = arquivo.openWriter()) {
             writer.write(sb.toString());
         }
+    }
+
+    /**
+     * Localiza o gancho de inicializacao {@code Main} da classe anotada.
+     *
+     * <p>Aceita {@code public static void Main()} ou
+     * {@code public static void Main(String[] args)}. Devolve a chamada pronta
+     * ou {@code null} quando o metodo nao existe.
+     */
+    private String invocacaoInicializacao(TypeElement app) {
+        ExecutableElement encontrado = null;
+        boolean comArgs = false;
+
+        for (Element elemento : app.getEnclosedElements()) {
+            if (elemento.getKind() != ElementKind.METHOD) {
+                continue;
+            }
+            ExecutableElement metodo = (ExecutableElement) elemento;
+            if (!metodo.getSimpleName().contentEquals("Main")) {
+                continue;
+            }
+
+            if (encontrado != null) {
+                erro(metodo, """
+                        Ha mais de um metodo 'Main' em %s.
+                        Deixe apenas um: public static void Main() ou Main(String[] args)."""
+                        .formatted(app.getQualifiedName()));
+                return null;
+            }
+
+            boolean semArgs = metodo.getParameters().isEmpty();
+            boolean comStringArray = metodo.getParameters().size() == 1
+                    && metodo.getParameters().get(0).asType().toString().equals("java.lang.String[]");
+
+            if (!metodo.getModifiers().contains(Modifier.PUBLIC)
+                    || !metodo.getModifiers().contains(Modifier.STATIC)) {
+                erro(metodo, """
+                        O metodo de inicializacao 'Main' precisa ser public static.
+                        O launcher gerado o chama diretamente, sem reflexao.""");
+                return null;
+            }
+            if (metodo.getReturnType().getKind() != TypeKind.VOID) {
+                erro(metodo, "O metodo de inicializacao 'Main' precisa retornar void.");
+                return null;
+            }
+            if (!semArgs && !comStringArray) {
+                erro(metodo, """
+                        O metodo de inicializacao 'Main' aceita no maximo um parametro String[].
+                        Use public static void Main() ou public static void Main(String[] args).""");
+                return null;
+            }
+
+            encontrado = metodo;
+            comArgs = comStringArray;
+        }
+
+        if (encontrado == null) {
+            return null;
+        }
+
+        return comArgs
+                ? app.getSimpleName() + ".Main(args);"
+                : app.getSimpleName() + ".Main();";
     }
 
     private void escreverServiceFile(List<String> registros, Element origem) {
