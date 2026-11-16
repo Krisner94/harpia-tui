@@ -29,7 +29,7 @@ import java.util.stream.Collectors;
  * ids unicos, pai existente, sem ciclos, pelo menos um menu raiz e metodos
  * {@code @Item} estaticos e sem parametros.
  */
-public final class MenuScanner {
+final class MenuScanner {
 
     private static final Comparator<MenuEntry> ORDEM =
             Comparator.comparingInt(MenuEntry::order).thenComparing(MenuEntry::label);
@@ -46,7 +46,7 @@ public final class MenuScanner {
     }
 
     /** Descobre (annotations ou JSON) e monta a arvore de menus. */
-    public static List<MenuEntry> scan(Class<?> appClass) {
+    static List<MenuEntry> scan(Class<?> appClass) {
         DuckTui config = appClass.getAnnotation(DuckTui.class);
         if (config == null) {
             throw new DuckTuiException(

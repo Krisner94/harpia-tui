@@ -6,17 +6,22 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>com.github.rhama</groupId>
-    <artifactId>duck-tui</artifactId>
+    <artifactId>ducktui</artifactId>
     <version>1.0.0-SNAPSHOT</version>
+    <packaging>jar</packaging>
+
     <name>DuckTUI</name>
-    <description>TUI inline de terminal em Java, feita com TamboUI</description>
+    <description>
+        Biblioteca de TUI inline declarativa para Java, sobre TamboUI.
+        Anote classes com @Menu/@Submenu/@Item ou aponte um JSON e a arvore de
+        menus e montada automaticamente.
+    </description>
 
     <properties>
         <maven.compiler.release>21</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <tamboui.version>0.8.0-SNAPSHOT</tamboui.version>
         <jackson.version>2.19.0</jackson.version>
-        <main.class>com.github.rhama.ducktui.DuckTuiApp</main.class>
     </properties>
 
     <!-- TamboUI ainda nao esta no Maven Central: apenas snapshots no Sonatype -->
@@ -42,6 +47,12 @@
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
+
+            <dependency>
+                <groupId>com.fasterxml.jackson.core</groupId>
+                <artifactId>jackson-databind</artifactId>
+                <version>${jackson.version}</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 
@@ -52,28 +63,37 @@
             <artifactId>tamboui-toolkit</artifactId>
         </dependency>
 
-        <!-- Backend obrigatorio: um deles e necessario -->
+        <!-- Backend de terminal (JLine 3) -->
         <dependency>
             <groupId>dev.tamboui</groupId>
             <artifactId>tamboui-jline3-backend</artifactId>
         </dependency>
 
-        <!-- Leitura do menus.json (mensagens de erro com linha/coluna) -->
+        <!-- Leitura do arquivo de menus declarativo -->
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
-            <version>${jackson.version}</version>
         </dependency>
     </dependencies>
 
     <build>
         <plugins>
             <plugin>
-                <groupId>org.codehaus.mojo</groupId>
-                <artifactId>exec-maven-plugin</artifactId>
-                <version>3.5.0</version>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.13.0</version>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>3.4.2</version>
                 <configuration>
-                    <mainClass>${main.class}</mainClass>
+                    <archive>
+                        <manifestEntries>
+                            <Automatic-Module-Name>com.github.rhama.ducktui</Automatic-Module-Name>
+                        </manifestEntries>
+                    </archive>
                 </configuration>
             </plugin>
         </plugins>

@@ -14,7 +14,7 @@ import java.util.List;
  * @param children filhos (submenus e itens)
  * @param action   metodo a executar, quando {@code kind == ITEM}
  */
-public record MenuEntry(
+record MenuEntry(
         String label,
         int depth,
         Kind kind,
@@ -22,7 +22,7 @@ public record MenuEntry(
         List<MenuEntry> children,
         Method action) {
 
-    public enum Kind { MENU, SUBMENU, ITEM }
+    enum Kind { MENU, SUBMENU, ITEM }
 
     public MenuEntry {
         children = List.copyOf(children);
