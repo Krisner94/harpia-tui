@@ -10,9 +10,9 @@ import java.lang.annotation.Target;
  * Marca a classe que inicializa uma aplicacao DuckTUI.
  *
  * <p>Funciona como o {@code @SpringBootApplication}: a classe anotada nao precisa
- * estender nada. O metodo {@code main} apenas delega para
- * {@code DuckTuiLauncher.launch(MinhaApp.class)}, que le esta annotation,
- * varre as {@link Menu @Menu} e sobe a aplicacao.
+ * estender nada nem declarar menus. O launcher varre o classpath procurando
+ * {@link Menu @Menu}, {@link Submenu @Submenu} e {@link Item @Item} e monta a
+ * arvore sozinho.
  *
  * <pre>{@code
  * @DuckTui(title = "DuckTUI")
@@ -30,6 +30,12 @@ public @interface DuckTui {
 
     /** Titulo exibido no cabecalho da area de status. */
     String title() default "DuckTUI";
+
+    /**
+     * Pacotes varridos em busca de menus (inclui subpacotes).
+     * Vazio (padrao) = o pacote desta classe e seus subpacotes.
+     */
+    String[] scan() default {};
 
     /**
      * Altura fixa da area de status, em linhas.

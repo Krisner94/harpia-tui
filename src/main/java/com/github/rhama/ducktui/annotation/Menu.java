@@ -9,19 +9,28 @@ import java.lang.annotation.Target;
 /**
  * Declara um menu de nivel raiz.
  *
- * <p>Um {@code @Menu} e <b>sempre</b> um no pai: deve ficar diretamente dentro da
- * classe anotada com {@link DuckTui @DuckTui}, nunca dentro de outro menu.
- * Filhos sao {@link Submenu @Submenu} (outros menus) ou {@link Item @Item}
- * (folhas executaveis). A regra e validada ao iniciar; se for violada, a
- * aplicacao aborta com {@link com.github.rhama.ducktui.boot.DuckTuiException}.
+ * <p>Basta anotar qualquer classe do pacote varrido e ela entra no menu
+ * automaticamente. Um {@code @Menu} e <b>sempre</b> um no pai: nao tem
+ * {@code parent} e nao pode estar aninhado em outro menu.
+ *
+ * <pre>{@code
+ * @Menu(id = "arquivo", label = "Arquivo", order = 1)
+ * public class ArquivoMenu {
+ *     @Item(label = "Novo")
+ *     public static String novo() { return "criado"; }
+ * }
+ * }</pre>
  */
 @Documented
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE)
 public @interface Menu {
 
-    /** Texto exibido no menu. */
-    String label();
+    /** Identificador unico, usado por {@link Submenu#parent()}. Vazio = nome simples da classe. */
+    String id() default "";
+
+    /** Texto exibido no menu. Vazio = nome simples da classe. */
+    String label() default "";
 
     /** Ordem entre irmaos (menor primeiro). Empate desempata pelo label. */
     int order() default 0;

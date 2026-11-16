@@ -9,20 +9,28 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
- * Le as annotations {@link Menu @Menu}, {@link Submenu @Submenu} e {@link Item @Item}
- * de uma classe {@link DuckTui @DuckTui} e monta a arvore de menus.
+ * Descobre os menus anotados e monta a arvore.
  *
- * <p>Aqui ficam as regras estruturais que o Java nao sabe expressar sozinho:
+ * <p>E o "component scan" do DuckTUI: varre os pacotes configurados em
+ * {@link DuckTui#scan()}, encontra toda classe com {@link Menu @Menu} ou
+ * {@link Submenu @Submenu} e liga os {@link Submenu @Submenu} aos seus pais
+ * pelo {@link Submenu#parent()}.
+ *
+ * <p>Regras validadas antes de desenhar qualquer coisa:
  * <ul>
- *   <li>{@code @Menu} e sempre no pai -> so pode ficar no nivel raiz</li>
- *   <li>{@code @Submenu} so existe dentro de {@code @Menu} ou {@code @Submenu}</li>
+ *   <li>{@code @Menu} e sempre raiz (sem parent, nao aninhado em outro menu)</li>
+ *   <li>{@code @Submenu} precisa de um pai {@code @Menu} ou {@code @Submenu} existente</li>
+ *   <li>ids unicos, sem ciclos</li>
  *   <li>{@code @Item} precisa ser {@code static} e sem parametros</li>
  * </ul>
- * Qualquer violacao aborta a aplicacao com {@link DuckTuiException} antes de
- * qualquer desenho na tela.
  */
 public final class MenuScanner {
 
@@ -32,67 +40,108 @@ public final class MenuScanner {
     private MenuScanner() {
     }
 
-    /** Monta a arvore de menus da aplicacao anotada. */
+    /** Descobre e monta a arvore de menus da aplicacao anotada. */
     public static List<MenuEntry> scan(Class<?> appClass) {
-        List<MenuEntry> raizes = new ArrayList<>();
+        DuckTui config = appClass.getAnnotation(DuckTui.class);
+        if (config == null) {
+            throw new DuckTuiException(
+                    "A classe " + appClass.getName() + " precisa da annotation @DuckTui para ser iniciada.");
+        }
 
-        for (Class<?> aninhada : appClass.getDeclaredClasses()) {
-            if (aninhada.isAnnotationPresent(Menu.class)) {
-                raizes.add(lerMenu(aninhada));
-            } else if (aninhada.isAnnotationPresent(Submenu.class)) {
-                throw new DuckTuiException("""
-                        @Submenu '%s' esta no nivel raiz.
-                        @Submenu so pode existir dentro de uma classe @Menu ou @Submenu.
-                        Para um menu de topo, use @Menu em vez de @Submenu."""
-                        .formatted(aninhada.getName()));
+        String[] pacotes = config.scan().length > 0
+                ? config.scan()
+                : new String[] {appClass.getPackageName()};
+
+        ClassLoader loader = Thread.currentThread().getContextClassLoader();
+        if (loader == null) {
+            loader = appClass.getClassLoader();
+        }
+
+        Map<String, Class<?>> porId = new LinkedHashMap<>();
+        Map<String, String> paiDe = new LinkedHashMap<>();
+        List<String> raizes = new ArrayList<>();
+
+        for (String pacote : pacotes) {
+            for (Class<?> tipo : ClassScanner.scan(loader, pacote)) {
+                boolean ehMenu = tipo.isAnnotationPresent(Menu.class);
+                boolean ehSubmenu = tipo.isAnnotationPresent(Submenu.class);
+
+                if (!ehMenu && !ehSubmenu) {
+                    continue;
+                }
+                if (ehMenu && ehSubmenu) {
+                    throw new DuckTuiException(
+                            "@Menu e @Submenu nao podem estar na mesma classe: " + tipo.getName());
+                }
+
+                String id = idDe(tipo);
+                Class<?> anterior = porId.putIfAbsent(id, tipo);
+                if (anterior != null) {
+                    throw new DuckTuiException("""
+                            Id de menu duplicado: '%s'.
+                            Usado por '%s' e por '%s'.
+                            Defina um id unico em @Menu/@Submenu."""
+                            .formatted(id, anterior.getName(), tipo.getName()));
+                }
+
+                if (ehMenu) {
+                    if (temAncestralAnotado(tipo)) {
+                        throw new DuckTuiException("""
+                                @Menu '%s' esta aninhado em outro menu.
+                                @Menu e sempre o no pai: para menus aninhados, use @Submenu."""
+                                .formatted(tipo.getName()));
+                    }
+                    raizes.add(id);
+                } else {
+                    paiDe.put(id, resolverPai(tipo));
+                }
             }
         }
 
-        raizes.sort(ORDEM);
-        return List.copyOf(raizes);
-    }
-
-    private static MenuEntry lerMenu(Class<?> tipo) {
-        Class<?> pai = tipo.getEnclosingClass();
-        if (pai != null && (pai.isAnnotationPresent(Menu.class) || pai.isAnnotationPresent(Submenu.class))) {
+        if (porId.isEmpty()) {
             throw new DuckTuiException("""
-                    @Menu '%s' esta dentro de outro menu.
-                    @Menu e sempre o no pai: para menus aninhados, use @Submenu."""
-                    .formatted(tipo.getName()));
+                    Nenhum @Menu encontrado.
+                    Pacotes varridos: %s.
+                    Anote as classes de menu com @Menu ou @Submenu."""
+                    .formatted(String.join(", ", pacotes)));
         }
 
-        Menu anotacao = tipo.getAnnotation(Menu.class);
-        return lerNo(tipo, anotacao.label(), anotacao.order(), 0, MenuEntry.Kind.MENU);
-    }
+        validarPais(porId, paiDe);
+        validarCiclos(paiDe);
 
-    private static MenuEntry lerSubmenu(Class<?> tipo, int profundidade) {
-        Class<?> pai = tipo.getEnclosingClass();
-        boolean paiValido =
-                pai != null && (pai.isAnnotationPresent(Menu.class) || pai.isAnnotationPresent(Submenu.class));
+        Map<String, List<String>> filhosDe = new HashMap<>();
+        paiDe.forEach((filho, pai) -> filhosDe.computeIfAbsent(pai, chave -> new ArrayList<>()).add(filho));
 
-        if (!paiValido) {
-            throw new DuckTuiException("""
-                    @Submenu '%s' nao esta dentro de um menu.
-                    Ele precisa ser uma classe aninhada em uma classe @Menu ou @Submenu."""
-                    .formatted(tipo.getName()));
+        List<MenuEntry> arvore = new ArrayList<>(raizes.size());
+        for (String raiz : raizes) {
+            arvore.add(montar(raiz, 0, porId, filhosDe));
         }
 
-        Submenu anotacao = tipo.getAnnotation(Submenu.class);
-        return lerNo(tipo, anotacao.label(), anotacao.order(), profundidade, MenuEntry.Kind.SUBMENU);
+        arvore.sort(ORDEM);
+        return List.copyOf(arvore);
     }
 
-    private static MenuEntry lerNo(Class<?> tipo, String label, int ordem, int profundidade, MenuEntry.Kind kind) {
+    private static MenuEntry montar(
+            String id, int profundidade, Map<String, Class<?>> porId, Map<String, List<String>> filhosDe) {
+
+        Class<?> tipo = porId.get(id);
+        boolean ehMenu = tipo.isAnnotationPresent(Menu.class);
+
+        String label = ehMenu
+                ? tipo.getAnnotation(Menu.class).label()
+                : tipo.getAnnotation(Submenu.class).label();
+        int ordem = ehMenu
+                ? tipo.getAnnotation(Menu.class).order()
+                : tipo.getAnnotation(Submenu.class).order();
+
+        if (label.isEmpty()) {
+            label = tipo.getSimpleName();
+        }
+
         List<MenuEntry> filhos = new ArrayList<>();
 
-        for (Class<?> aninhada : tipo.getDeclaredClasses()) {
-            if (aninhada.isAnnotationPresent(Submenu.class)) {
-                filhos.add(lerSubmenu(aninhada, profundidade + 1));
-            } else if (aninhada.isAnnotationPresent(Menu.class)) {
-                throw new DuckTuiException("""
-                        @Menu '%s' esta dentro de '%s'.
-                        @Menu e sempre o no pai: para menus aninhados, use @Submenu."""
-                        .formatted(aninhada.getName(), tipo.getName()));
-            }
+        for (String filho : filhosDe.getOrDefault(id, List.of())) {
+            filhos.add(montar(filho, profundidade + 1, porId, filhosDe));
         }
 
         for (Method metodo : tipo.getDeclaredMethods()) {
@@ -102,7 +151,83 @@ public final class MenuScanner {
         }
 
         filhos.sort(ORDEM);
-        return new MenuEntry(label, profundidade, kind, ordem, filhos, null);
+
+        return new MenuEntry(
+                label,
+                profundidade,
+                ehMenu ? MenuEntry.Kind.MENU : MenuEntry.Kind.SUBMENU,
+                ordem,
+                filhos,
+                null);
+    }
+
+    private static String idDe(Class<?> tipo) {
+        String id = tipo.isAnnotationPresent(Menu.class)
+                ? tipo.getAnnotation(Menu.class).id()
+                : tipo.getAnnotation(Submenu.class).id();
+        return id.isEmpty() ? tipo.getSimpleName() : id;
+    }
+
+    private static String resolverPai(Class<?> tipo) {
+        Submenu anotacao = tipo.getAnnotation(Submenu.class);
+
+        if (!anotacao.parent().isEmpty()) {
+            return anotacao.parent();
+        }
+
+        Class<?> pai = tipo.getEnclosingClass();
+        while (pai != null && !(pai.isAnnotationPresent(Menu.class) || pai.isAnnotationPresent(Submenu.class))) {
+            pai = pai.getEnclosingClass();
+        }
+
+        if (pai == null) {
+            throw new DuckTuiException("""
+                    @Submenu '%s' nao declara parent e nao esta aninhado em um menu anotado.
+                    Declare o pai: @Submenu(parent = "id-do-menu-pai", ...)."""
+                    .formatted(tipo.getName()));
+        }
+
+        return idDe(pai);
+    }
+
+    private static boolean temAncestralAnotado(Class<?> tipo) {
+        Class<?> pai = tipo.getEnclosingClass();
+        while (pai != null) {
+            if (pai.isAnnotationPresent(Menu.class) || pai.isAnnotationPresent(Submenu.class)) {
+                return true;
+            }
+            pai = pai.getEnclosingClass();
+        }
+        return false;
+    }
+
+    private static void validarPais(Map<String, Class<?>> porId, Map<String, String> paiDe) {
+        paiDe.forEach((filho, pai) -> {
+            if (filho.equals(pai)) {
+                throw new DuckTuiException(
+                        "@Submenu '%s' aponta para si mesmo em parent.".formatted(filho));
+            }
+            if (!porId.containsKey(pai)) {
+                throw new DuckTuiException("""
+                        @Submenu '%s' aponta para parent='%s', que nao existe.
+                        Ids disponiveis: %s."""
+                        .formatted(porId.get(filho).getName(), pai, porId.keySet()));
+            }
+        });
+    }
+
+    private static void validarCiclos(Map<String, String> paiDe) {
+        for (String inicio : paiDe.keySet()) {
+            Set<String> vistos = new HashSet<>();
+            String atual = inicio;
+            while (atual != null) {
+                if (!vistos.add(atual)) {
+                    throw new DuckTuiException(
+                            "Ciclo de @Submenu detectado envolvendo '" + inicio + "'.");
+                }
+                atual = paiDe.get(atual);
+            }
+        }
     }
 
     private static MenuEntry lerItem(Method metodo, int profundidade) {

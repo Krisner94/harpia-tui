@@ -7,21 +7,37 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Declara um submenu, que <b>sempre</b> fica dentro de um {@link Menu @Menu}
- * ou de outro {@link Submenu @Submenu}.
+ * Declara um submenu, que <b>sempre</b> pertence a um {@link Menu @Menu} ou a
+ * outro {@link Submenu @Submenu}.
  *
- * <p>Essa restricao nao existe na linguagem Java (annotation nao sabe onde esta
- * aninhada), entao ela e verificada pelo {@code MenuScanner} no start da
- * aplicacao -- e tambem pode ser checada em tempo de compilacao por um
- * annotation processor, se um dia for necessario.
+ * <p>Como as classes ficam soltas no classpath, o vinculo com o pai e declarado
+ * em {@link #parent()}. Se a classe estiver aninhada dentro de um menu anotado,
+ * o pai e inferido e {@code parent} pode ficar vazio.
+ *
+ * <pre>{@code
+ * @Submenu(parent = "arquivo", label = "Recentes", order = 2)
+ * public class RecentesMenu {
+ *     @Item(label = "lago-norte.duck")
+ *     public static String norte() { return "abrindo"; }
+ * }
+ * }</pre>
  */
 @Documented
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE)
 public @interface Submenu {
 
-    /** Texto exibido no submenu. */
-    String label();
+    /** Identificador unico deste submenu. Vazio = nome simples da classe. */
+    String id() default "";
+
+    /**
+     * Id do menu pai ({@code @Menu} ou {@code @Submenu}).
+     * Obrigatorio quando a classe nao esta aninhada em outro menu anotado.
+     */
+    String parent() default "";
+
+    /** Texto exibido no submenu. Vazio = nome simples da classe. */
+    String label() default "";
 
     /** Ordem entre irmaos (menor primeiro). Empate desempata pelo label. */
     int order() default 0;

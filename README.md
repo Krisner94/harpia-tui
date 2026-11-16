@@ -1,25 +1,43 @@
 # DuckTUI
 
 TUI de terminal em Java, feita com [TamboUI](https://tamboui.dev/docs/main/), com
-**boot por annotation**: a classe `main` não estende nada, só declara a árvore de
-menus e delega para o launcher.
+**descoberta automática no estilo Spring Boot**: você anota a classe e ela aparece
+no menu. A classe `main` não estende nem declara nada.
 
-O modo usado é **inline**: o app **não** toma a tela toda. Ele reserva apenas
-algumas linhas no rodapé para a área de status, e o que você imprime com
-`println()` rola para cima, acima dela — o padrão do Gradle/npm.
+```java
+@DuckTui(title = "DuckTUI")
+public class DuckTuiApp {
+    public static void main(String[] args) throws Exception {
+        DuckTuiLauncher.launch(DuckTuiApp.class);
+    }
+}
+```
+
+```java
+@Menu(id = "arquivo", label = "Arquivo", order = 1)
+public class ArquivoMenu {
+    @Item(label = "Novo lago")
+    public static String novoLago() { return "lago novo criado"; }
+}
+```
 
 ```
->   • Abrir...
-    ▾ Recentes
-      • lago-norte.duck
-      • lago-sul.duck
-      ▾ Arquivados
-        • lago-seco.duck
-    • exportar
+> ▾ Arquivo
+      • Novo lago
+      • Abrir...
+      ▾ Recentes
+        • lago-norte.duck
+        • lago-sul.duck
+        ▾ Arquivados
+          • lago-seco.duck
+      • exportar
   ▾ Ajuda
-    • Sobre o DuckTUI
+      • Sobre o DuckTUI
 [setas] navegar   [enter] executar   [q] sair
 ```
+
+O modo é **inline**: não toma a tela toda. Reserva só as linhas do menu no rodapé
+e o que você imprime com `println()` rola para cima, acima dele.
 
 ## Requisitos
 
@@ -40,99 +58,107 @@ export PATH="$JAVA_HOME/bin:$HOME/.local/opt/apache-maven-3.9.9/bin:$PATH"
 ./run.sh
 ```
 
-Ou direto pelo Maven:
+Ou:
 
 ```bash
 mvn -q compile exec:java
 ```
 
-Exemplo alternativo, sem annotations (só `InlineApp`): `com.github.rhama.ducktui.demo.ProgressDemo`.
-
 ## Estrutura
 
 ```
 src/main/java/com/github/rhama/ducktui/
-├── DuckTuiApp.java              # sua app: @DuckTui + árvore de menus
+├── DuckTuiApp.java              # main: só @DuckTui + launch()
+├── menus/                       # menus soltos, descobertos pelo scan
+│   ├── ArquivoMenu.java         @Menu(id = "arquivo")
+│   ├── RecentesMenu.java        @Submenu(parent = "arquivo")
+│   ├── ArquivadosMenu.java      @Submenu(parent = "recentes")
+│   └── AjudaMenu.java           @Menu(id = "ajuda")
 ├── annotation/
-│   ├── DuckTui.java             # annotation de boot
+│   ├── DuckTui.java             # boot + pacotes varridos
 │   ├── Menu.java                # nó pai
-│   ├── Submenu.java             # nó filho
+│   ├── Submenu.java             # nó filho (parent = id do pai)
 │   └── Item.java                # folha executável
 ├── boot/
-│   ├── DuckTuiLauncher.java     # bootstrap (o "Spring" da parada)
-│   ├── MenuScanner.java         # lê as annotations e valida a hierarquia
+│   ├── DuckTuiLauncher.java     # bootstrap
+│   ├── ClassScanner.java        # varredura de classpath (dirs + jars)
+│   ├── MenuScanner.java         # descobre, liga pais e valida
 │   ├── MenuEntry.java           # nó da árvore
 │   ├── MenuApp.java             # InlineApp que desenha o menu
-│   └── DuckTuiException.java    # erro de configuração
+│   └── DuckTuiException.java
 └── demo/
     └── ProgressDemo.java        # exemplo sem annotations
 ```
 
 ## Annotations
 
-| Annotation | Onde vai | Regra |
-| --- | --- | --- |
-| `@DuckTui` | classe com `main` | obrigatória; define `title` e `height` |
-| `@Menu` | classe aninhada | **sempre pai**: só no nível raiz |
-| `@Submenu` | classe aninhada | **sempre dentro** de `@Menu` ou `@Submenu` |
-| `@Item` | método `static` sem parâmetros | folha executável |
+| Annotation | Onde vai | Campos | Regra |
+| --- | --- | --- | --- |
+| `@DuckTui` | classe com `main` | `title`, `scan`, `height` | obrigatória |
+| `@Menu` | qualquer classe | `id`, `label`, `order` | **sempre pai**: sem `parent`, não aninhado em menu |
+| `@Submenu` | qualquer classe | `id`, `parent`, `label`, `order` | **sempre filho** de um `@Menu`/`@Submenu` |
+| `@Item` | método `static` sem args | `label`, `order` | folha executável |
 
-Declarar um menu é só aninhar classes:
+`id` vazio = nome simples da classe. `label` vazio = nome simples da classe
+(em `@Item`, vazio = nome do método). `order` decide a posição entre irmãos;
+empate desempata pelo label.
+
+## Como a descoberta funciona
+
+1. `DuckTuiLauncher.launch(MinhaApp.class)` lê `@DuckTui`.
+2. Os pacotes varridos são `@DuckTui(scan = ...)` ou, se vazio, o pacote da sua
+   classe **e todos os subpacotes**.
+3. `ClassScanner` enumera as classes do classpath — diretórios (`target/classes`)
+   e jars — sem dependência externa.
+4. `MenuScanner` registra toda classe com `@Menu`/`@Submenu`, liga cada
+   `@Submenu` ao `parent` e monta a árvore.
+5. `MenuApp` renderiza o resultado.
+
+Não há ordem de declaração a respeitar: o scanner monta a árvore pelas
+referências de `id`. Classes em arquivos e pacotes diferentes se encontram.
+
+### Ainda aceita classes aninhadas
+
+Se você preferir o estilo antigo, `@Submenu` aninhado dentro de uma classe
+anotada tem o pai inferido — `parent` pode ficar vazio:
 
 ```java
-@DuckTui(title = "DuckTUI")
-public class DuckTuiApp {
-
-    @Menu(label = "Arquivo", order = 1)
-    static class Arquivo {
-
-        @Item(label = "Novo lago", order = 1)
-        static String novoLago() {
-            return "lago novo criado";   // devolvido -> impresso acima do status
-        }
-
-        @Submenu(label = "Recentes", order = 2)
-        static class Recentes {
-            @Item(label = "lago-norte.duck")
-            static String norte() { return "abrir lago-norte.duck"; }
-        }
-    }
-
-    public static void main(String[] args) throws Exception {
-        DuckTuiLauncher.launch(DuckTuiApp.class);
-    }
+@Menu(id = "arquivo", label = "Arquivo")
+static class Arquivo {
+    @Submenu(label = "Recentes")   // pai inferido: "arquivo"
+    static class Recentes { }
 }
 ```
 
-`order` decide a posição entre irmãos (empate desempata pelo label). `@Item` sem
-`label` usa o nome do método. Se o método devolver algo diferente de `void`, o
-valor é impresso acima da área de status.
+### Restrições validadas no start
 
-### As regras são realmente validadas
-
-Java **não** consegue expressar "esta annotation só pode ficar dentro daquela"
-— annotation não sabe onde está aninhada. Então a checagem é feita em runtime,
-no `MenuScanner`, **antes** de qualquer coisa ser desenhada:
+Java não expressa "isto só pode ficar dentro daquilo" — annotation não sabe onde
+está aninhada. Então tudo é checado **antes** de desenhar a primeira linha:
 
 ```
-Exception in thread "main" com.github.rhama.ducktui.boot.DuckTuiException:
-@Submenu 'SubmenuRaiz$Orfao' esta no nivel raiz.
-@Submenu so pode existir dentro de uma classe @Menu ou @Submenu.
-Para um menu de topo, use @Menu em vez de @Submenu.
+@Submenu 'orfao.Solto' nao declara parent e nao esta aninhado em um menu anotado.
+Declare o pai: @Submenu(parent = "id-do-menu-pai", ...).
+
+Id de menu duplicado: 'mesmo'.
+Usado por 'duplicado.Dois' e por 'duplicado.Um'.
+
+@Submenu 'paiinexistente.Filho' aponta para parent='naoexiste', que nao existe.
+Ids disponiveis: [filho, raiz].
+
+Ciclo de @Submenu detectado envolvendo 'a'.
 ```
 
-Também são barrados: `@Menu` dentro de outro menu, `@Item` não-`static`,
-`@Item` com parâmetros e classe sem `@DuckTui`.
+Também são barrados: `@Menu` aninhado em outro menu, `@Menu` + `@Submenu` na mesma
+classe, `@Item` não-`static`, `@Item` com parâmetros e app sem `@DuckTui`.
 
-## Como o código funciona
+## Como o app funciona
 
 | Peça | Papel |
 | --- | --- |
-| `DuckTuiLauncher.launch(...)` | lê `@DuckTui`, monta a árvore e sobe a app |
-| `MenuScanner.scan(...)` | varre classes/métodos aninhados e valida as regras |
 | `MenuApp extends InlineApp` | desenha o menu e trata as teclas |
-| `height()` | calcula linhas reservadas: entradas + cabeçalho + dica |
+| `height()` | linhas reservadas: entradas + cabeçalho + dica |
 | `onKeyEvent` | ↑/↓ navegam, Enter executa, `q` sai (nativo do TamboUI) |
+| `@Item` com retorno | o valor é impresso acima da área de status |
 
 Detalhes que importam:
 
@@ -142,21 +168,28 @@ Detalhes que importam:
   cadeia de foco. Sem isso o evento nunca chega.
 - **Sair**: `q` e Ctrl+C já encerram por padrão, sem código extra.
 
+## Limites da varredura
+
+- Funciona com classpath normal (dirs e jars). Em **GraalVM native image** ou
+  módulos JPMS a enumeração por `getResources` pode não ver tudo — nesses casos,
+  restringir `scan` para um pacote pequeno ou trocar por uma lista explícita.
+- Em classpaths gigantes, varra só o pacote da aplicação.
+
 ## Evoluir para validação em tempo de compilação
 
-A validação atual é em runtime. Se quiser que o `javac` recuse o projeto antes de
-rodar, o caminho é um **annotation processor**:
+A validação atual é em runtime. Para o `javac` recusar antes de rodar, use um
+**annotation processor** em módulo separado (`ducktui-processor`):
 
-1. crie um módulo `ducktui-processor` com `javax.annotation.processing.Processor`;
-2. nele, para cada `Element` anotado com `@Submenu`, verifique
-   `getEnclosingElement()` e emita `Messager.printMessage(ERROR, ...)` se o pai
-   não tiver `@Menu`/`@Submenu`;
-3. registre em `META-INF/services/javax.annotation.processing.Processor`;
-4. no `pom.xml`, aponte em `<annotationProcessorPaths>`.
+- registre `javax.annotation.processing.Processor` em
+  `META-INF/services/`;
+- para cada elemento anotado, cheque `getEnclosingElement()`/atributos e emita
+  `Messager.printMessage(Diagnostic.Kind.ERROR, ...)`;
+- declare em `<annotationProcessorPaths>` no `pom.xml`.
 
-O TamboUI já usa essa técnica no `tamboui-processor` dele (para `@OnAction`), então
-serve de referência. Precisa de módulo separado porque o processor tem que estar
-compilado antes de processar as suas classes.
+O `tamboui-processor` do próprio TamboUI faz isso para `@OnAction` e serve de
+referência. Obs.: Processadores rodam sobre fontes, então a checagem seria de
+`@Item` estático, ciclos e `@Submenu` aninhado — o `parent` por string só pode
+ser verificado se o processor conseguir resolver as classes.
 
 > `@OnAction` é a **única** annotation nativa do TamboUI e só funciona em
 > `Component` (não em `InlineApp`). Para eventos, o caminho normal é
@@ -164,10 +197,10 @@ compilado antes de processar as suas classes.
 
 ## Próximos passos
 
-- Colapsar/expandir submenus (Enter em nó pai alterna o estado)
+- Colapsar/expandir submenus (Enter em nó pai alterna)
 - `@Item(quit = true)` para o item "Sair"
-- Navegação por atalhos (`@Item(shortcut = "n")`)
-- [Forms](https://tamboui.dev/docs/main/forms.html), [CSS](https://tamboui.dev/docs/main/styling.html), [Widgets](https://tamboui.dev/docs/main/widgets.html)
+- Atalhos: `@Item(shortcut = "n")`
+- Ordenar menus por `order` também entre raízes (já funciona) e agrupar por `@Menu(group = ...)`
 
 ## Avisos
 
