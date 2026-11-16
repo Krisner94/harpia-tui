@@ -15,6 +15,7 @@
         <maven.compiler.release>21</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <tamboui.version>0.8.0-SNAPSHOT</tamboui.version>
+        <jackson.version>2.19.0</jackson.version>
         <main.class>com.github.rhama.ducktui.DuckTuiApp</main.class>
     </properties>
 
@@ -55,6 +56,13 @@
         <dependency>
             <groupId>dev.tamboui</groupId>
             <artifactId>tamboui-jline3-backend</artifactId>
+        </dependency>
+
+        <!-- Leitura do menus.json (mensagens de erro com linha/coluna) -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>${jackson.version}</version>
         </dependency>
     </dependencies>
 

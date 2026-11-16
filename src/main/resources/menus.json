@@ -1,0 +1,41 @@
+{
+  "menus": [
+    {
+      "id": "arquivo",
+      "label": "Arquivo",
+      "order": 1,
+      "class": "ArquivoMenu"
+    },
+    {
+      "id": "recentes",
+      "parent": "arquivo",
+      "label": "Recente",
+      "order": 3,
+      "class": "RecentesMenu"
+    },
+    {
+      "id": "arquivados",
+      "parent": "recentes",
+      "label": "Arquivados",
+      "order": 3,
+      "class": "ArquivadosMenu"
+    },
+    {
+      "id": "ferramentas",
+      "label": "Ferramentas",
+      "order": 2,
+      "items": [
+        {
+          "label": "Recarregar menus",
+          "action": "DuckTuiJsonApp#recarregar",
+          "order": 1
+        },
+        {
+          "label": "Sobre",
+          "action": "AjudaMenu#sobre",
+          "order": 2
+        }
+      ]
+    }
+  ]
+}

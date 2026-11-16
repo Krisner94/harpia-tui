@@ -1,8 +1,15 @@
 # DuckTUI
 
 TUI de terminal em Java, feita com [TamboUI](https://tamboui.dev/docs/main/), com
-**descoberta automática no estilo Spring Boot**: você anota a classe e ela aparece
-no menu. A classe `main` não estende nem declara nada.
+**descoberta automática no estilo Spring Boot**. A árvore de menus pode vir de
+duas fontes:
+
+| Modo | Como declarar | Onde |
+| --- | --- | --- |
+| annotations | `@Menu` / `@Submenu` / `@Item` | qualquer classe dos pacotes varridos |
+| arquivo JSON | `@DuckTui(menus = "menus.json")` | classpath ou disco |
+
+Nos dois casos a classe `main` não estende nem declara nada:
 
 ```java
 @DuckTui(title = "DuckTUI")
@@ -13,26 +20,18 @@ public class DuckTuiApp {
 }
 ```
 
-```java
-@Menu(id = "arquivo", label = "Arquivo", order = 1)
-public class ArquivoMenu {
-    @Item(label = "Novo lago")
-    public static String novoLago() { return "lago novo criado"; }
-}
-```
-
 ```
 > ▾ Arquivo
       • Novo lago
       • Abrir...
-      ▾ Recentes
+      ▾ Recente
         • lago-norte.duck
         • lago-sul.duck
         ▾ Arquivados
           • lago-seco.duck
       • exportar
-  ▾ Ajuda
-      • Sobre o DuckTUI
+  ▾ Ferramentas
+      • Recarregar menus
 [setas] navegar   [enter] executar   [q] sair
 ```
 
@@ -55,46 +54,52 @@ export PATH="$JAVA_HOME/bin:$HOME/.local/opt/apache-maven-3.9.9/bin:$PATH"
 ## Rodar
 
 ```bash
-./run.sh
+./run.sh          # menus por annotation
+./run.sh json     # menus pelo menus.json
 ```
 
 Ou:
 
 ```bash
 mvn -q compile exec:java
+mvn -q compile exec:java -Dexec.mainClass=com.github.rhama.ducktui.DuckTuiJsonApp
 ```
 
 ## Estrutura
 
 ```
 src/main/java/com/github/rhama/ducktui/
-├── DuckTuiApp.java              # main: só @DuckTui + launch()
-├── menus/                       # menus soltos, descobertos pelo scan
+├── DuckTuiApp.java              # main: @DuckTui + launch()          (annotations)
+├── DuckTuiJsonApp.java          # main: @DuckTui(menus = "...")      (json)
+├── menus/                       # menus anotados, descobertos pelo scan
 │   ├── ArquivoMenu.java         @Menu(id = "arquivo")
 │   ├── RecentesMenu.java        @Submenu(parent = "arquivo")
 │   ├── ArquivadosMenu.java      @Submenu(parent = "recentes")
 │   └── AjudaMenu.java           @Menu(id = "ajuda")
 ├── annotation/
-│   ├── DuckTui.java             # boot + pacotes varridos
-│   ├── Menu.java                # nó pai
-│   ├── Submenu.java             # nó filho (parent = id do pai)
-│   └── Item.java                # folha executável
+│   ├── DuckTui.java             # boot + pacotes varridos + arquivo de menus
+│   ├── Menu.java
+│   ├── Submenu.java
+│   └── Item.java
 ├── boot/
 │   ├── DuckTuiLauncher.java     # bootstrap
 │   ├── ClassScanner.java        # varredura de classpath (dirs + jars)
-│   ├── MenuScanner.java         # descobre, liga pais e valida
-│   ├── MenuEntry.java           # nó da árvore
+│   ├── MenuScanner.java         # normaliza annotations/JSON, valida e monta
+│   ├── JsonMenuLoader.java      # lê e valida o formato do menus.json
+│   ├── MenuEntry.java
 │   ├── MenuApp.java             # InlineApp que desenha o menu
 │   └── DuckTuiException.java
 └── demo/
     └── ProgressDemo.java        # exemplo sem annotations
+
+src/main/resources/menus.json    # árvore usada pelo modo JSON
 ```
 
 ## Annotations
 
 | Annotation | Onde vai | Campos | Regra |
 | --- | --- | --- | --- |
-| `@DuckTui` | classe com `main` | `title`, `scan`, `height` | obrigatória |
+| `@DuckTui` | classe com `main` | `title`, `scan`, `menus`, `height` | obrigatória |
 | `@Menu` | qualquer classe | `id`, `label`, `order` | **sempre pai**: sem `parent`, não aninhado em menu |
 | `@Submenu` | qualquer classe | `id`, `parent`, `label`, `order` | **sempre filho** de um `@Menu`/`@Submenu` |
 | `@Item` | método `static` sem args | `label`, `order` | folha executável |
@@ -103,53 +108,108 @@ src/main/java/com/github/rhama/ducktui/
 (em `@Item`, vazio = nome do método). `order` decide a posição entre irmãos;
 empate desempata pelo label.
 
-## Como a descoberta funciona
-
-1. `DuckTuiLauncher.launch(MinhaApp.class)` lê `@DuckTui`.
-2. Os pacotes varridos são `@DuckTui(scan = ...)` ou, se vazio, o pacote da sua
-   classe **e todos os subpacotes**.
-3. `ClassScanner` enumera as classes do classpath — diretórios (`target/classes`)
-   e jars — sem dependência externa.
-4. `MenuScanner` registra toda classe com `@Menu`/`@Submenu`, liga cada
-   `@Submenu` ao `parent` e monta a árvore.
-5. `MenuApp` renderiza o resultado.
-
-Não há ordem de declaração a respeitar: o scanner monta a árvore pelas
-referências de `id`. Classes em arquivos e pacotes diferentes se encontram.
-
-### Ainda aceita classes aninhadas
-
-Se você preferir o estilo antigo, `@Submenu` aninhado dentro de uma classe
-anotada tem o pai inferido — `parent` pode ficar vazio:
-
 ```java
-@Menu(id = "arquivo", label = "Arquivo")
-static class Arquivo {
-    @Submenu(label = "Recentes")   // pai inferido: "arquivo"
-    static class Recentes { }
+@Submenu(id = "recentes", parent = "arquivo", label = "Recente", order = 3)
+public class RecentesMenu {
+    @Item(label = "lago-norte.duck")
+    public static String norte() { return "abrindo lago-norte.duck"; }
 }
 ```
 
-### Restrições validadas no start
+`@Submenu` aninhado dentro de uma classe anotada dispensa `parent` (o pai é
+inferido).
 
-Java não expressa "isto só pode ficar dentro daquilo" — annotation não sabe onde
-está aninhada. Então tudo é checado **antes** de desenhar a primeira linha:
+## Modo arquivo JSON
+
+Aponte o arquivo em `@DuckTui(menus = ...)`. O caminho é buscado primeiro no
+**classpath** (ex.: `src/main/resources/menus.json`) e depois no **disco**
+(caminho absoluto ou relativo).
+
+```java
+@DuckTui(title = "DuckTUI (json)", menus = "menus.json")
+public class DuckTuiJsonApp {
+    public static String recarregar() { return "menus recarregados"; }
+
+    public static void main(String[] args) throws Exception {
+        DuckTuiLauncher.launch(DuckTuiJsonApp.class);
+    }
+}
+```
+
+```json
+{
+  "menus": [
+    { "id": "arquivo", "label": "Arquivo", "order": 1, "class": "ArquivoMenu" },
+
+    { "id": "recentes", "parent": "arquivo", "label": "Recente", "order": 3,
+      "class": "RecentesMenu" },
+
+    { "id": "arquivados", "parent": "recentes", "label": "Arquivados", "order": 3,
+      "class": "ArquivadosMenu" },
+
+    { "id": "ferramentas", "label": "Ferramentas", "order": 2,
+      "items": [
+        { "label": "Recarregar menus", "action": "DuckTuiJsonApp#recarregar", "order": 1 },
+        { "label": "Sobre", "action": "AjudaMenu#sobre", "order": 2 }
+      ] }
+  ]
+}
+```
+
+Um array puro no topo também é aceito.
+
+### Campos
+
+| Campo | Onde | Obrigatório | Significado |
+| --- | --- | --- | --- |
+| `id` | todo nó | sim (único) | identificador, usado por `parent` |
+| `parent` | todo nó | não | id do pai; **ausente = menu raiz** |
+| `label` | todo nó | não | texto exibido; padrão = `id` |
+| `order` | todo nó | não | ordem entre irmãos; padrão `0` |
+| `class` | todo nó | não | classe cujos `@Item` são herdados |
+| `items[]` | todo nó | não | itens avulsos declarados no arquivo |
+| `action` | item | sim | `"Classe#metodo"` (`static`, sem args) |
+
+Em JSON não existe `@Menu`/`@Submenu`: **sem `parent` é menu raiz, com `parent`
+é submenu**. A distinção é estrutural.
+
+### Como o nome da classe é resolvido
+
+Você não precisa informar o pacote. O `MenuScanner` monta um índice com todas as
+classes dos pacotes varridos e resolve:
+
+1. nome simples (`"ArquivoMenu"`) → procura no índice;
+2. nome completo (`"com.github.rhama.ducktui.menus.ArquivoMenu"`) → `Class.forName`;
+3. zero resultados ou mais de um → erro listando as candidatas.
+
+O mesmo vale para `action`.
+
+### Precedência
+
+`@DuckTui(menus = "...")` preenchido **ignora as annotations**. Sem `menus`, vale
+o scan de `@Menu`/`@Submenu`. Os dois modos compartilham a mesma validação e o
+mesmo renderizador.
+
+### Erros de configuração (testados)
 
 ```
-@Submenu 'orfao.Solto' nao declara parent e nao esta aninhado em um menu anotado.
-Declare o pai: @Submenu(parent = "id-do-menu-pai", ...).
+JSON invalido em '.../invalido.json': Unexpected character ('"' (code 34)):
+was expecting comma to separate Object entries (linha 1, coluna 26)
 
-Id de menu duplicado: 'mesmo'.
-Usado por 'duplicado.Dois' e por 'duplicado.Um'.
+Arquivo de menus nao encontrado: 'nao-existe-mesmo.json'
+Procurei no classpath e no disco.
 
-@Submenu 'paiinexistente.Filho' aponta para parent='naoexiste', que nao existe.
-Ids disponiveis: [filho, raiz].
+Menu #0 em '.../semid.json' sem 'id'. Todo no precisa de um id unico.
 
-Ciclo de @Submenu detectado envolvendo 'a'.
+Classe 'NaoExiste' citada em '...' nao foi encontrada.
+Use o nome completo ou aponte @DuckTui(scan = "...") para o pacote dela.
+
+Acao invalida 'semMetodo' em '...'.
+Use o formato "Classe#metodo".
+
+O menu 'b' aponta para parent='zzz', que nao existe.
+Ids disponiveis: [a, b].
 ```
-
-Também são barrados: `@Menu` aninhado em outro menu, `@Menu` + `@Submenu` na mesma
-classe, `@Item` não-`static`, `@Item` com parâmetros e app sem `@DuckTui`.
 
 ## Como o app funciona
 
@@ -158,7 +218,7 @@ classe, `@Item` não-`static`, `@Item` com parâmetros e app sem `@DuckTui`.
 | `MenuApp extends InlineApp` | desenha o menu e trata as teclas |
 | `height()` | linhas reservadas: entradas + cabeçalho + dica |
 | `onKeyEvent` | ↑/↓ navegam, Enter executa, `q` sai (nativo do TamboUI) |
-| `@Item` com retorno | o valor é impresso acima da área de status |
+| `@Item`/`action` com retorno | o valor é impresso acima da área de status |
 
 Detalhes que importam:
 
@@ -168,39 +228,23 @@ Detalhes que importam:
   cadeia de foco. Sem isso o evento nunca chega.
 - **Sair**: `q` e Ctrl+C já encerram por padrão, sem código extra.
 
-## Limites da varredura
+## Limites conhecidos
 
-- Funciona com classpath normal (dirs e jars). Em **GraalVM native image** ou
-  módulos JPMS a enumeração por `getResources` pode não ver tudo — nesses casos,
-  restringir `scan` para um pacote pequeno ou trocar por uma lista explícita.
-- Em classpaths gigantes, varra só o pacote da aplicação.
-
-## Evoluir para validação em tempo de compilação
-
-A validação atual é em runtime. Para o `javac` recusar antes de rodar, use um
-**annotation processor** em módulo separado (`ducktui-processor`):
-
-- registre `javax.annotation.processing.Processor` em
-  `META-INF/services/`;
-- para cada elemento anotado, cheque `getEnclosingElement()`/atributos e emita
-  `Messager.printMessage(Diagnostic.Kind.ERROR, ...)`;
-- declare em `<annotationProcessorPaths>` no `pom.xml`.
-
-O `tamboui-processor` do próprio TamboUI faz isso para `@OnAction` e serve de
-referência. Obs.: Processadores rodam sobre fontes, então a checagem seria de
-`@Item` estático, ciclos e `@Submenu` aninhado — o `parent` por string só pode
-ser verificado se o processor conseguir resolver as classes.
-
-> `@OnAction` é a **única** annotation nativa do TamboUI e só funciona em
-> `Component` (não em `InlineApp`). Para eventos, o caminho normal é
-> `.onKeyEvent(...)`.
+- A varredura usa `getResources`, então cobre classpath normal (dirs e jars). Em
+  **GraalVM native image** ou JPMS fechado pode não ver tudo — nesse caso use
+  nomes completos no JSON e restrinja `scan`.
+- A validação é em **runtime**, no start. Um annotation processor no `javac`
+  exigiria módulo separado e não resolveria `parent` por string sozinho.
+- `@OnAction` é a única annotation nativa do TamboUI e só funciona em `Component`
+  (não em `InlineApp`). Para eventos, use `.onKeyEvent(...)`.
+- O JSON é lido com Jackson; é a única dependência além do TamboUI/JLine.
 
 ## Próximos passos
 
 - Colapsar/expandir submenus (Enter em nó pai alterna)
-- `@Item(quit = true)` para o item "Sair"
+- `@Item(quit = true)` / `{"quit": true}` para o item "Sair"
 - Atalhos: `@Item(shortcut = "n")`
-- Ordenar menus por `order` também entre raízes (já funciona) e agrupar por `@Menu(group = ...)`
+- Recarregar o JSON em tempo de execução (hoje é lido uma vez no start)
 
 ## Avisos
 
